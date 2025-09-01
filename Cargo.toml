@@ -1,0 +1,27 @@
+[package]
+name = "stellar-arbitrage"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Soroban SDK for smart contract development
+soroban-sdk = "0.11.0"
+
+# For HTTP requests to Reflector Network oracle
+reqwest = { version = "0.11", features = ["json"] }
+tokio = { version = "1", features = ["full"] }
+
+# Environment variable management
+dotenv = "0.15.0"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+[dev-dependencies]
+# Testing framework
+soroban-sdk = { version = "0.11.0", features = ["testutils"] }
