@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+target/
+contracts/target/
+**/target/
+
+# Build outputs
+**/*.wasm
+**/*.wasm.map
+**/*.d
+**/*.rlib
+
+# Environment files
+.env
+!.env.example
+
+# IDE files
+**/*.swp
+**/*.swo
+**/*.swn
+**/*~
+.DS_Store
+Thumbs.db
+
+# Logs
+**/*.log
+
+# Testing
+**/test_snapshots/
+**/*.snap
+
+# Cargo
+Cargo.lock
+**/Cargo.lock
+.cargo/
+
+# Temporary files
+*.tmp
+*.temp
+
+# OS generated files
+**/*.DS_Store
+**/Thumbs.db
+
+# Soroban specific
+**/*.soroban
