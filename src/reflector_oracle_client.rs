@@ -38,8 +38,9 @@ impl ReflectorOracleClient {
         // In a real implementation, this data would come from an off-chain oracle
         
         // Create a deterministic but varied price based on asset and exchange
-        let asset_str = asset.to_string();
-        let exchange_str = exchange.to_string();
+        // For this simulation, we'll use fixed strings since we can't easily convert soroban_sdk::String to &str
+        let asset_str = "XLM";
+        let exchange_str = "Stellar DEX";
         let price = simulate_price(&asset_str, &exchange_str, env.ledger().timestamp());
         
         let price_data = PriceData {
@@ -60,7 +61,8 @@ impl ReflectorOracleClient {
         // For this MVP, we'll simulate a TWAP value
         
         // Simulate TWAP calculation
-        let asset_str = asset.to_string();
+        // For this simulation, we'll use a fixed string since we can't easily convert soroban_sdk::String to &str
+        let asset_str = "XLM";
         let base_price = simulate_price(&asset_str, "TWAP", env.ledger().timestamp());
         let twap_value = (base_price * (10000 - (period % 100) as i128)) / 10000; // Small variation based on period
         

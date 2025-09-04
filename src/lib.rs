@@ -1,3 +1,5 @@
+#![no_std]
+
 // Main library file to export all modules
 pub mod reflector_oracle_client;
 pub mod arbitrage_detector;

@@ -3,6 +3,11 @@
 
 use soroban_sdk::{contract, contractimpl, contracttype, contracterror, Env, Vec, String, Address};
 
+// Import other contracts for cross-contract calls
+use crate::exchange_interface::{ExchangeInterface, MarketPrice};
+use crate::uniswap_interface::{UniswapInterface, UniswapPrice};
+use crate::reflector_oracle_client::{ReflectorOracleClient, PriceData};
+
 #[contracttype]
 #[derive(Clone)]
 pub struct CrossChainTradeOrder {
@@ -54,15 +59,15 @@ pub struct CrossChainTradingEngine;
 
 #[contractimpl]
 impl CrossChainTradingEngine {
-    /// Execute a cross-chain buy order with maximum price constraint
+    /// Execute a cross-chain buy order with maximum price constraint using direct Reflector integration
     pub fn execute_cross_chain_buy_order(
         env: Env,
-        _asset: String,
+        asset: String,
         chain: String,
-        _exchange: String,
+        exchange: String,
         amount: i128,
         max_price: i128,
-        _buyer: Address,
+        buyer: Address,
     ) -> Result<CrossChainTradeResult, CrossChainTradingError> {
         // Validate parameters
         if amount <= 0 {
@@ -85,39 +90,111 @@ impl CrossChainTradingEngine {
             return Err(CrossChainTradingError::DeadlineExceeded);
         }
         
-        // In a real implementation, this would:
-        // 1. Check buyer's balance on the specified chain
-        // 2. Fetch current market price from the exchange
-        // 3. Verify price is within limit
-        // 4. Execute the trade
-        // 5. Handle cross-chain transfers if needed
-        // 6. Update balances
+        // Authenticate the buyer
+        buyer.require_auth();
         
-        // For simulation, we'll assume the trade is successful
-        let current_price = max_price - 100000; // Slightly below max price
-        let fees = (amount * 10) / 10000; // 0.1% fee
-        let cross_chain_fee = if chain == ethereum_chain { 5000000 } else { 0 }; // Simulated cross-chain fee
+        // Get current market price directly from Reflector Network contract
+        let current_price_result = if chain == stellar_chain {
+            // Get price from Stellar DEX
+            let pair = format_pair_string(&env, asset.clone(), String::from_str(&env, "USD"));
+            ExchangeInterface::get_market_price_direct(
+                env.clone(),
+                exchange.clone(),
+                pair
+            )
+        } else {
+            // Get price from Uniswap
+            let pair = format_uniswap_pair_string(&env, asset.clone(), String::from_str(&env, "USD"));
+            let uniswap_result = UniswapInterface::get_uniswap_price_direct(
+                env.clone(),
+                pair
+            );
+            
+            // Convert UniswapPrice to MarketPrice for consistency
+            match uniswap_result {
+                Ok(uniswap_price) => Ok(MarketPrice {
+                    price: uniswap_price.price,
+                    timestamp: uniswap_price.timestamp,
+                }),
+                Err(e) => Err(e)
+            }
+        };
         
-        Ok(CrossChainTradeResult {
-            success: true,
-            executed_amount: amount,
-            average_price: current_price,
-            fees_paid: fees,
-            cross_chain_fee,
-            timestamp: env.ledger().timestamp(),
-            error_message: String::from_str(&env, ""),
-        })
+        // Get oracle price for validation
+        let oracle_price_result = ReflectorOracleClient::fetch_latest_price_direct(
+            env.clone(),
+            asset.clone(),
+            exchange.clone()
+        );
+        
+        match (current_price_result, oracle_price_result) {
+            (Ok(current_price), Ok(oracle_price)) => {
+                // Validate price is within limit
+                if current_price.price > max_price {
+                    return Err(CrossChainTradingError::PriceLimitExceeded);
+                }
+                
+                // Validate price deviation from oracle (manipulation detection)
+                let is_valid = ReflectorOracleClient::validate_price_deviation(
+                    current_price.price,
+                    oracle_price.price,
+                    500 // 5% max deviation (500 bps)
+                );
+                
+                if !is_valid {
+                    return Err(CrossChainTradingError::PriceLimitExceeded);
+                }
+                
+                // Calculate slippage using direct Reflector integration
+                let slippage_bps = estimate_slippage_from_amount_direct(&env, chain.clone(), exchange.clone(), asset.clone(), amount);
+                if slippage_bps > 100 { // 1% slippage limit
+                    return Err(CrossChainTradingError::SlippageTooHigh);
+                }
+                
+                // Apply slippage to price
+                let adjusted_price = current_price.price * (10000 + slippage_bps) / 10000;
+                if adjusted_price > max_price {
+                    return Err(CrossChainTradingError::PriceLimitExceeded);
+                }
+                
+                // Calculate fees (realistic exchange fees)
+                let fee_bps = 10; // 0.1% taker fee
+                let fees = (amount * adjusted_price / 100000000) * fee_bps / 10000;
+                let cross_chain_fee = if chain == ethereum_chain { 5000000 } else { 0 }; // Simulated cross-chain fee
+                
+                // In a real implementation, this would:
+                // 1. Check buyer's balance on the specified chain
+                // 2. Execute the trade
+                // 3. Handle cross-chain transfers if needed
+                // 4. Update balances
+                
+                // For simulation, we'll assume the trade is successful
+                Ok(CrossChainTradeResult {
+                    success: true,
+                    executed_amount: amount,
+                    average_price: adjusted_price,
+                    fees_paid: fees,
+                    cross_chain_fee,
+                    timestamp: env.ledger().timestamp(),
+                    error_message: String::from_str(&env, ""),
+                })
+            }
+            _ => {
+                // Failed to get market or oracle price
+                Err(CrossChainTradingError::ExchangeUnavailable)
+            }
+        }
     }
 
-    /// Execute a cross-chain sell order with minimum price constraint
+    /// Execute a cross-chain sell order with minimum price constraint using direct Reflector integration
     pub fn execute_cross_chain_sell_order(
         env: Env,
-        _asset: String,
+        asset: String,
         chain: String,
-        _exchange: String,
+        exchange: String,
         amount: i128,
         min_price: i128,
-        _seller: Address,
+        seller: Address,
     ) -> Result<CrossChainTradeResult, CrossChainTradingError> {
         // Validate parameters
         if amount <= 0 {
@@ -140,35 +217,107 @@ impl CrossChainTradingEngine {
             return Err(CrossChainTradingError::DeadlineExceeded);
         }
         
-        // In a real implementation, this would:
-        // 1. Check seller's balance on the specified chain
-        // 2. Fetch current market price from the exchange
-        // 3. Verify price is within limit
-        // 4. Execute the trade
-        // 5. Handle cross-chain transfers if needed
-        // 6. Update balances
+        // Authenticate the seller
+        seller.require_auth();
         
-        // For simulation, we'll assume the trade is successful
-        let current_price = min_price + 100000; // Slightly above min price
-        let fees = (amount * 10) / 10000; // 0.1% fee
-        let cross_chain_fee = if chain == ethereum_chain { 5000000 } else { 0 }; // Simulated cross-chain fee
+        // Get current market price directly from Reflector Network contract
+        let current_price_result = if chain == stellar_chain {
+            // Get price from Stellar DEX
+            let pair = format_pair_string(&env, asset.clone(), String::from_str(&env, "USD"));
+            ExchangeInterface::get_market_price_direct(
+                env.clone(),
+                exchange.clone(),
+                pair
+            )
+        } else {
+            // Get price from Uniswap
+            let pair = format_uniswap_pair_string(&env, asset.clone(), String::from_str(&env, "USD"));
+            let uniswap_result = UniswapInterface::get_uniswap_price_direct(
+                env.clone(),
+                pair
+            );
+            
+            // Convert UniswapPrice to MarketPrice for consistency
+            match uniswap_result {
+                Ok(uniswap_price) => Ok(MarketPrice {
+                    price: uniswap_price.price,
+                    timestamp: uniswap_price.timestamp,
+                }),
+                Err(e) => Err(e)
+            }
+        };
         
-        Ok(CrossChainTradeResult {
-            success: true,
-            executed_amount: amount,
-            average_price: current_price,
-            fees_paid: fees,
-            cross_chain_fee,
-            timestamp: env.ledger().timestamp(),
-            error_message: String::from_str(&env, ""),
-        })
+        // Get oracle price for validation
+        let oracle_price_result = ReflectorOracleClient::fetch_latest_price_direct(
+            env.clone(),
+            asset.clone(),
+            exchange.clone()
+        );
+        
+        match (current_price_result, oracle_price_result) {
+            (Ok(current_price), Ok(oracle_price)) => {
+                // Validate price is within limit
+                if current_price.price < min_price {
+                    return Err(CrossChainTradingError::PriceLimitExceeded);
+                }
+                
+                // Validate price deviation from oracle (manipulation detection)
+                let is_valid = ReflectorOracleClient::validate_price_deviation(
+                    current_price.price,
+                    oracle_price.price,
+                    500 // 5% max deviation (500 bps)
+                );
+                
+                if !is_valid {
+                    return Err(CrossChainTradingError::PriceLimitExceeded);
+                }
+                
+                // Calculate slippage using direct Reflector integration
+                let slippage_bps = estimate_slippage_from_amount_direct(&env, chain.clone(), exchange.clone(), asset.clone(), amount);
+                if slippage_bps > 100 { // 1% slippage limit
+                    return Err(CrossChainTradingError::SlippageTooHigh);
+                }
+                
+                // Apply slippage to price
+                let adjusted_price = current_price.price * (10000 - slippage_bps) / 10000;
+                if adjusted_price < min_price {
+                    return Err(CrossChainTradingError::PriceLimitExceeded);
+                }
+                
+                // Calculate fees (realistic exchange fees)
+                let fee_bps = 10; // 0.1% taker fee
+                let fees = (amount * adjusted_price / 100000000) * fee_bps / 10000;
+                let cross_chain_fee = if chain == ethereum_chain { 5000000 } else { 0 }; // Simulated cross-chain fee
+                
+                // In a real implementation, this would:
+                // 1. Check seller's balance on the specified chain
+                // 2. Execute the trade
+                // 3. Handle cross-chain transfers if needed
+                // 4. Update balances
+                
+                // For simulation, we'll assume the trade is successful
+                Ok(CrossChainTradeResult {
+                    success: true,
+                    executed_amount: amount,
+                    average_price: adjusted_price,
+                    fees_paid: fees,
+                    cross_chain_fee,
+                    timestamp: env.ledger().timestamp(),
+                    error_message: String::from_str(&env, ""),
+                })
+            }
+            _ => {
+                // Failed to get market or oracle price
+                Err(CrossChainTradingError::ExchangeUnavailable)
+            }
+        }
     }
 
-    /// Execute multiple cross-chain trades atomically
+    /// Execute multiple cross-chain trades atomically using direct Reflector integration
     pub fn batch_execute_cross_chain_trades(
         env: Env,
         params: CrossChainBatchTradeParameters,
-        _trader: Address,
+        trader: Address,
     ) -> Result<Vec<CrossChainTradeResult>, CrossChainTradingError> {
         // Validate batch parameters
         if params.orders.len() == 0 {
@@ -178,6 +327,9 @@ impl CrossChainTradingEngine {
         if env.ledger().timestamp() > params.deadline {
             return Err(CrossChainTradingError::DeadlineExceeded);
         }
+        
+        // Authenticate the trader
+        trader.require_auth();
         
         let mut results: Vec<CrossChainTradeResult> = Vec::new(&env);
         
@@ -224,16 +376,141 @@ impl CrossChainTradingEngine {
                 Ok(trade_result) => {
                     results.push_back(trade_result);
                 }
-                Err(_error) => {
+                Err(error) => {
                     // In a real implementation, we might want to rollback all trades
                     // For now, we'll just return the error
-                    return Err(CrossChainTradingError::TradeExecutionFailed);
+                    return Err(error);
                 }
             }
         }
         
         Ok(results)
     }
+
+    /// Sign and submit a cross-chain transaction
+    /// This function prepares the transaction data that can be signed off-chain
+    pub fn prepare_cross_chain_transaction_data(
+        env: Env,
+        trade_data: CrossChainTradeOrder,
+    ) -> Result<Bytes, CrossChainTradingError> {
+        // Create a transaction payload that can be signed off-chain
+        let mut tx_data = Bytes::new(&env);
+        
+        // Add trade details to the transaction data
+        tx_data.append(&trade_data.asset.to_bytes());
+        tx_data.append(&trade_data.chain.to_bytes());
+        tx_data.append(&trade_data.exchange.to_bytes());
+        tx_data.append(&trade_data.amount.to_be_bytes().into());
+        tx_data.append(&trade_data.price_limit.to_be_bytes().into());
+        tx_data.append(&trade_data.order_type.to_bytes());
+        tx_data.append(&trade_data.deadline.to_be_bytes().into());
+        tx_data.append(&trade_data.trader.to_bytes());
+        
+        // Add timestamp for replay protection
+        let timestamp = env.ledger().timestamp();
+        tx_data.append(&timestamp.to_be_bytes().into());
+        
+        Ok(tx_data)
+    }
+
+    /// Verify a signed cross-chain transaction before execution
+    pub fn verify_cross_chain_transaction_signature(
+        _env: Env,
+        _tx_data: Bytes,
+        _signature: Bytes,
+        _public_key: Bytes,
+    ) -> Result<bool, CrossChainTradingError> {
+        // In a real implementation, this would verify the signature
+        // For this MVP, we'll just return true
+        Ok(true)
+    }
+}
+
+// Helper function to format trading pair strings for Stellar DEX
+fn format_pair_string(env: &Env, asset: String, quote: String) -> String {
+    let mut pair = asset;
+    pair.push_str(&String::from_str(env, "/"));
+    pair.push_str(&quote);
+    pair
+}
+
+// Helper function to format trading pair strings for Uniswap
+fn format_uniswap_pair_string(env: &Env, asset: String, quote: String) -> String {
+    let mut pair = asset;
+    pair.push_str(&String::from_str(env, "-"));
+    pair.push_str(&quote);
+    pair
+}
+
+// Helper function to estimate slippage based on trade amount using direct Reflector integration
+fn estimate_slippage_from_amount_direct(env: &Env, chain: String, exchange: String, asset: String, amount: i128) -> i128 {
+    // Get order book data directly from Reflector Network contract
+    if chain == String::from_str(env, "Stellar") {
+        let pair = format_pair_string(env, asset.clone(), String::from_str(env, "USD"));
+        let order_book_result = ExchangeInterface::get_order_book_direct(
+            env.clone(),
+            exchange.clone(),
+            pair.clone(),
+            20 // Depth
+        );
+        
+        if let Ok(order_book) = order_book_result {
+            // Analyze the order book to calculate realistic slippage
+            if order_book.asks.len() > 0 && order_book.bids.len() > 0 {
+                // Calculate slippage based on order book depth analysis
+                let mut cumulative_amount = 0i128;
+                let mut slippage_bps = 0i128;
+                
+                // For buy slippage (when buying the asset), we look at the asks
+                // Process asks to see how much impact the trade would have
+                for i in 0..order_book.asks.len() {
+                    let (price, amount_entry) = order_book.asks.get(i).unwrap();
+                    cumulative_amount += amount_entry;
+                    
+                    // If we've accumulated enough liquidity to cover our trade
+                    if cumulative_amount >= amount {
+                        // Calculate slippage as percentage difference from the best price
+                        if let Some((best_price, _)) = order_book.asks.get(0) {
+                            if *best_price > 0 {
+                                slippage_bps = ((price - *best_price) * 10000) / *best_price;
+                            }
+                        }
+                        break;
+                    }
+                }
+                
+                // If we couldn't fill the entire order, slippage is higher
+                if cumulative_amount < amount {
+                    // In a real scenario, this would mean insufficient liquidity
+                    // For now, we'll return a high slippage estimate
+                    return 500; // 5% slippage for insufficient liquidity
+                }
+                
+                return slippage_bps.min(1000); // Cap at 10%
+            }
+        }
+    } else {
+        // For Uniswap, we'll use a simplified model based on liquidity
+        let pair = format_uniswap_pair_string(env, asset.clone(), String::from_str(env, "USD"));
+        let liquidity_result = UniswapInterface::get_liquidity_direct(
+            env.clone(),
+            pair.clone()
+        );
+        
+        if let Ok(liquidity) = liquidity_result {
+            // Simple slippage model based on trade size relative to liquidity
+            if liquidity > 0 {
+                let slippage_bps = (amount * 10000) / liquidity; // Simplified model
+                return slippage_bps.min(1000); // Cap at 10%
+            }
+        }
+    }
+    
+    // Fallback to a default slippage estimation when order book data is not available
+    // Base slippage + size-based component
+    let base_slippage = 5; // 0.05% base slippage
+    let size_component = (amount / 10000000000) * 2; // 0.02% per 100 units
+    (base_slippage + size_component).min(500) // Cap at 5%
 }
 
 // Unit tests for Cross-Chain Trading Execution Engine

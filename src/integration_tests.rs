@@ -41,7 +41,13 @@ mod integration_tests {
             &String::from_str(&env, "Stellar DEX")
         );
         
+        let binance_price_result = oracle_client.try_fetch_latest_price(
+            &String::from_str(&env, "XLM"),
+            &String::from_str(&env, "Binance")
+        );
+        
         assert!(stellar_price_result.is_ok());
+        assert!(binance_price_result.is_ok());
         
         // Step 2: Detect arbitrage opportunities
         let assets = Vec::new(&env);
@@ -68,17 +74,17 @@ mod integration_tests {
         let risk_assessment = risk_client.assess_trade_risk(&trade_params, &risk_params);
         assert!(risk_assessment.is_ok());
         
-        // Step 4: Execute flash loan arbitrage with XycLoans
+        // Step 4: Execute flash loan arbitrage
         let borrower = Address::from_string(&String::from_str(&env, "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H"));
         
         let flash_params = FlashLoanParameters {
             asset: String::from_str(&env, "XLM"),
             amount: 10000000000, // 100 XLM
             buy_exchange: String::from_str(&env, "Stellar DEX"),
-            sell_exchange: String::from_str(&env, "Stellar DEX"),
+            sell_exchange: String::from_str(&env, "Binance"),
             min_profit: 1000000, // 0.01 XLM
             deadline: env.ledger().timestamp() + 300, // 5 minutes from now
-            flash_loan_provider: String::from_str(&env, "CB75LG2KULDDIFL2BBZHIBXDPXELJJFWRRHKJZ2H5JF7C4DT6GHW4PJQ"),
+            flash_loan_provider: String::from_str(&env, "Generic Lender"),
         };
         
         let arbitrage_result = flash_loan_client.execute_flash_arbitrage(&flash_params, &borrower);
@@ -98,7 +104,7 @@ mod integration_tests {
         
         let trader = Address::from_string(&String::from_str(&env, "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H"));
         
-        // Create a batch of trades - only Stellar DEX
+        // Create a batch of trades
         let order1 = TradeOrder {
             asset: String::from_str(&env, "XLM"),
             exchange: String::from_str(&env, "Stellar DEX"),
@@ -111,7 +117,7 @@ mod integration_tests {
         
         let order2 = TradeOrder {
             asset: String::from_str(&env, "XLM"),
-            exchange: String::from_str(&env, "Stellar DEX"),
+            exchange: String::from_str(&env, "Binance"),
             amount: 5000000000, // 50 XLM
             price_limit: 99000000, // 0.99 XLM
             order_type: String::from_str(&env, "sell"),

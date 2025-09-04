@@ -93,17 +93,30 @@ cargo test
 
 ### Deploying to Testnet
 
-1. Start a local Soroban network:
+1. Start a local Soroban network (optional):
    ```bash
    soroban lab start
    ```
 
-2. Deploy the contract:
+2. Deploy the contract using one of the following methods:
+
+   **Method 1: Using environment variable**
    ```bash
-   soroban contract deploy \
-     --wasm target/wasm32-unknown-unknown/release/stellar_arbitrage.wasm \
-     --source YOUR_SECRET_KEY
+   export SECRET_KEY=YOUR_SECRET_KEY
+   ./scripts/deploy-testnet.sh
    ```
+
+   **Method 2: Using the new deployment scripts with secret key parameter**
+   ```bash
+   ./scripts/deploy-with-key.sh YOUR_SECRET_KEY
+   ```
+
+   **On Windows:**
+   ```cmd
+   scripts\deploy-with-key.bat YOUR_SECRET_KEY
+   ```
+
+   Note: You can create a testnet account and get funded XLM from the [Stellar Laboratory](https://laboratory.stellar.org/#account-creator?network=test).
 
 ## Core Smart Contracts
 

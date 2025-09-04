@@ -4,6 +4,9 @@
 // Reflector Network Oracle Configuration
 pub const REFLECTOR_API_URL: &str = "https://api.reflector.network/data_feed";
 pub const REFLECTOR_WS_URL: &str = "wss://ws.reflector.network/price_stream";
+// Reflector Network Smart Contract Addresses (Testnet)
+pub const REFLECTOR_STELLAR_DEX_CONTRACT: &str = "CAVLP5DH2GJPZMVO7IJY4CVOD5MWEFTJFVPD2YY2FQXOQHRGHK4D6HLP"; // Stellar DEX price feeds
+pub const REFLECTOR_CROSS_CHAIN_CONTRACT: &str = "CCYOZJCOPG34LLQQ7N24YXBM7LL62R7ONMZ3G6WZAAYPB5OYKOMJRN63"; // Cross-chain price feeds
 
 // Exchange API Keys (for testing purposes)
 pub const BINANCE_API_KEY: &str = "your_binance_api_key";

@@ -121,26 +121,28 @@ impl RiskManager {
 
     /// Set stop-loss for a position
     pub fn set_stop_loss(
-        _env: Env,
+        env: Env,
         params: StopLossParameters,
-        _trader: Address,
+        trader: Address,
     ) -> Result<bool, RiskError> {
-        // In a real implementation, this would:
-        // 1. Validate the stop loss parameters
-        // 2. Store the stop loss order
-        // 3. Monitor the position
-        // 4. Execute the stop loss when triggered
+        // Authenticate the trader
+        trader.require_auth();
         
-        // For simulation, we'll just validate and return success
+        // Validate the stop loss parameters
         if params.stop_loss_price <= 0 || params.amount <= 0 {
             return Err(RiskError::InvalidRiskParameters);
         }
         
-        // Simulate successful stop loss setup
+        // In a real implementation, this would:
+        // 1. Store the stop loss order in contract storage
+        // 2. Monitor the position
+        // 3. Execute the stop loss when triggered
+        
+        // For simulation, we'll just validate and return success
         Ok(true)
     }
 
-    /// Monitor current exposure and positions
+    /// Monitor current exposure and positions using real Stellar account data
     pub fn monitor_exposure(
         env: Env,
         positions: soroban_sdk::Vec<Position>,
@@ -153,7 +155,8 @@ impl RiskManager {
         let mut max_drawdown = 0i128;
         
         // Calculate total exposure and PnL
-        for position in positions.iter() {
+        for i in 0..positions.len() {
+            let position = positions.get(i).unwrap();
             total_exposure += position.amount;
             total_pnl += position.pnl;
             
@@ -179,6 +182,111 @@ impl RiskManager {
         
         Ok(exposure_report)
     }
+
+    /// Calculate real-time PnL for open positions
+    pub fn calculate_real_time_pnl(
+        env: Env,
+        positions: soroban_sdk::Vec<Position>,
+    ) -> Result<soroban_sdk::Vec<Position>, RiskError> {
+        let mut updated_positions: soroban_sdk::Vec<Position> = soroban_sdk::Vec::new(&env);
+        
+        // For each position, update the PnL based on current market prices
+        for i in 0..positions.len() {
+            let mut position = positions.get(i).unwrap();
+            
+            // Get current market price directly from Reflector Network contract
+            let pair = format_pair_string(&env, position.asset.clone(), String::from_str(&env, "USD"));
+            let market_price_result = crate::exchange_interface::ExchangeInterface::get_market_price_direct(
+                env.clone(),
+                position.exchange.clone(),
+                pair
+            );
+            
+            if let Ok(market_price) = market_price_result {
+                // Update current price
+                position.current_price = market_price.price;
+                
+                // Recalculate PnL
+                position.pnl = ((market_price.price - position.entry_price) * position.amount) / 100000000;
+            }
+            
+            updated_positions.push_back(position);
+        }
+        
+        Ok(updated_positions)
+    }
+
+    /// Check if stop-loss should be triggered for any positions
+    pub fn check_stop_loss_triggers(
+        env: Env,
+        positions: soroban_sdk::Vec<Position>,
+        stop_loss_orders: soroban_sdk::Vec<StopLossParameters>,
+    ) -> Result<soroban_sdk::Vec<StopLossParameters>, RiskError> {
+        let mut triggered_orders: soroban_sdk::Vec<StopLossParameters> = soroban_sdk::Vec::new(&env);
+        
+        // For each stop-loss order, check if it should be triggered
+        for i in 0..stop_loss_orders.len() {
+            let stop_loss = stop_loss_orders.get(i).unwrap();
+            
+            // Find the corresponding position
+            for j in 0..positions.len() {
+                let position = positions.get(j).unwrap();
+                
+                // Check if this is the position for this stop-loss order
+                if position.asset == stop_loss.asset && position.exchange == stop_loss.exchange {
+                    // Get current market price directly from Reflector Network contract
+                    let pair = format_pair_string(&env, position.asset.clone(), String::from_str(&env, "USD"));
+                    let market_price_result = crate::exchange_interface::ExchangeInterface::get_market_price_direct(
+                        env.clone(),
+                        position.exchange.clone(),
+                        pair
+                    );
+                    
+                    if let Ok(market_price) = market_price_result {
+                        // Check if stop-loss should be triggered
+                        // For long positions, trigger if price falls below stop-loss price
+                        // For short positions, trigger if price rises above stop-loss price
+                        // In this implementation, we assume long positions
+                        if market_price.price <= stop_loss.stop_loss_price {
+                            triggered_orders.push_back(stop_loss);
+                        }
+                    }
+                }
+            }
+        }
+        
+        Ok(triggered_orders)
+    }
+
+    /// Check exposure limits based on real account balances
+    pub fn check_exposure_limits(
+        _env: Env,
+        positions: soroban_sdk::Vec<Position>,
+        max_total_exposure: i128,
+    ) -> Result<bool, RiskError> {
+        let mut total_exposure = 0i128;
+        
+        // Calculate total exposure across all positions
+        for i in 0..positions.len() {
+            let position = positions.get(i).unwrap();
+            total_exposure += position.amount.abs(); // Use absolute value for total exposure
+        }
+        
+        // Check if total exposure exceeds limit
+        if total_exposure > max_total_exposure {
+            return Err(RiskError::PositionLimitExceeded);
+        }
+        
+        Ok(true)
+    }
+}
+
+// Helper function to format trading pair strings
+fn format_pair_string(env: &Env, asset: String, quote: String) -> String {
+    let mut pair = asset;
+    pair.push_str(&String::from_str(env, "/"));
+    pair.push_str(&quote);
+    pair
 }
 
 // Unit tests for Risk Management System

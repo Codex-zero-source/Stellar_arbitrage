@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import sqlite3
 from datetime import datetime, timedelta
 import os
+import requests  # Add requests for HTTP calls
 from dotenv import load_dotenv
 import json
 
@@ -15,6 +16,8 @@ load_dotenv()
 class PerformanceAnalytics:
     def __init__(self):
         self.db_path = os.getenv('ANALYTICS_DB_PATH', 'analytics.db')
+        self.reflector_api_url = os.getenv('REFLECTOR_API_URL', 'https://api.reflector.network/data_feed')
+        self.reflector_api_key = os.getenv('REFLECTOR_API_KEY')
         self.initialize_database()
         
     def initialize_database(self):
@@ -69,6 +72,33 @@ class PerformanceAnalytics:
         
         conn.commit()
         conn.close()
+        
+    def fetch_reflector_price_data(self, asset, exchange):
+        """Fetch real price data from Reflector Network API"""
+        try:
+            headers = {
+                'Authorization': f'Bearer {self.reflector_api_key}',
+                'Content-Type': 'application/json'
+            }
+            
+            response = requests.get(
+                f'{self.reflector_api_url}/{asset}/{exchange}',
+                headers=headers,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                return {
+                    'price': data.get('price'),
+                    'volume_24h': data.get('volume_24h', 0),
+                    'confidence': data.get('confidence', 90),
+                    'timestamp': datetime.now()
+                }
+        except Exception as e:
+            print(f"Error fetching price data from Reflector API: {e}")
+        
+        return None
         
     def record_trade(self, trade_data):
         """Record a completed trade in the database"""
