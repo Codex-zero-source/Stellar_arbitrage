@@ -36,30 +36,36 @@ The platform consists of several core components:
    rustup target add wasm32-unknown-unknown
    ```
 
-2. **Stellar CLI Tools**: Install Soroban CLI
+2. **Stellar CLI Tools**: Install Stellar CLI
    ```bash
-   cargo install --locked soroban-cli
+   cargo install --locked stellar-cli
    ```
 
-3. **Node.js**: For off-chain components (v14 or higher)
-4. **Python**: For analytics dashboard (v3.8 or higher)
+3. **Node.js**: For web dashboard components (v14 or higher)
 
 ## Smart Contract Deployment
 
 ### 1. Compile Contracts
 ```bash
-cargo build --target wasm32-unknown-unknown --release
+cd contracts
+stellar contract build
 ```
+
+This will build all contracts in the workspace and generate WASM files in the `target/wasm32-unknown-unknown/release/` directory.
 
 ### 2. Deploy to Stellar Testnet
 ```bash
-# On Unix/Linux/MacOS
-./scripts/deploy-reflector-oracle-client.sh
-./scripts/deploy-arbitrage-detector.sh
+# Deploy Reflector Oracle Client
+stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/reflector_oracle_client.wasm \
+  --source <SOURCE_ACCOUNT_SECRET_KEY> \
+  --network testnet
 
-# On Windows
-.\scripts\deploy-reflector-oracle-client.bat
-.\scripts\deploy-arbitrage-detector.bat
+# Deploy Arbitrage Detector
+stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/arbitrage_detector.wasm \
+  --source <SOURCE_ACCOUNT_SECRET_KEY> \
+  --network testnet
 ```
 
 ### 3. Update Environment Variables
@@ -76,23 +82,7 @@ REFLECTOR_ORACLE_CONTRACT_ID=your_deployed_reflector_oracle_client_id
 
 ## Running the Platform
 
-### 1. Start the Price Monitor
-The price monitor connects to Reflector Network's WebSocket API to receive real-time price updates:
-```bash
-cd off_chain
-npm install
-node PriceMonitor.js
-```
-
-### 2. Start the Analytics Dashboard
-The analytics dashboard provides real-time monitoring of trading performance:
-```bash
-cd off_chain
-pip install -r requirements.txt
-python Analytics.py
-```
-
-### 3. Start the Web Dashboard
+### Start the Web Dashboard
 The web dashboard displays real-time arbitrage opportunities and trade execution:
 ```bash
 cd web/dashboard
@@ -115,6 +105,9 @@ STELLAR_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
 ARBITRAGE_DETECTOR_CONTRACT_ID=your_deployed_arbitrage_detector_id
 REFLECTOR_ORACLE_CONTRACT_ID=your_deployed_reflector_oracle_client_id
 TRADING_ENGINE_CONTRACT_ID=your_deployed_trading_engine_id
+
+# Flash Loan Provider
+FLASH_LOAN_PROVIDER=CB75LG2KULDDIFL2BBZHIBXDPXELJJFWRRHKJZ2H5JF7C4DT6GHW4PJQ
 
 # Simulation Parameters
 NUM_ACCOUNTS=10
@@ -197,7 +190,7 @@ python test_contracts.py
 1. **Contract call failures**: Ensure contract IDs are correctly set in `.env` files
 2. **Insufficient funds**: Make sure trading accounts have sufficient XLM for transaction fees
 3. **Network connectivity**: Verify RPC endpoint URLs are accessible
-4. **Soroban CLI issues**: Try reinstalling with `cargo install --locked soroban-cli`
+4. **Stellar CLI issues**: Try reinstalling with `cargo install --locked stellar-cli`
 
 ### Debugging
 
