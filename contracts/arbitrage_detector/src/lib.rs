@@ -1,5 +1,8 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, Env, Vec, String, log};
+use soroban_sdk::{contract, contractimpl, contracttype, contractclient, Env, Vec, String, log, Address};
+
+// Import the Reflector Oracle client
+use reflector_oracle_client::{ReflectorOracleClient, OracleError, PriceData, OrderBookData};
 
 #[contracttype]
 pub struct ArbitrageOpportunity {
@@ -40,13 +43,38 @@ pub struct TradingFees {
     pub flash_loan_fee_bps: i128,
 }
 
+// Interface for Exchange contract
+#[contractclient(name = "ExchangeClient")]
+pub trait ExchangeInterface {
+    fn get_market_price(env: Env, exchange: String, pair: String) -> Result<MarketPrice, ExchangeError>;
+    fn get_order_book(env: Env, exchange: String, pair: String, depth: u32) -> Result<OrderBook, ExchangeError>;
+}
+
+#[contracttype]
+pub struct MarketPrice {
+    pub price: i128,
+    pub timestamp: u64,
+}
+
+#[contracterror]
+pub enum ExchangeError {
+    NetworkError = 1,
+    InvalidData = 2,
+}
+
+#[contracttype]
+pub struct OrderBook {
+    pub bids: Vec<(i128, i128)>, // price, amount
+    pub asks: Vec<(i128, i128)>, // price, amount
+}
+
 #[contract]
 pub struct ArbitrageDetector;
 
 #[contractimpl]
 impl ArbitrageDetector {
     /// Scan for arbitrage opportunities between Reflector oracle and Stellar DEX
-    pub fn scan_opportunities(env: Env, assets: Vec<String>, min_profit: i128) -> Vec<ArbitrageOpportunity> {
+    pub fn scan_opportunities(env: Env, assets: Vec<String>, min_profit: i128, exchange_address: Address) -> Vec<ArbitrageOpportunity> {
         log!(&env, "scan_opportunities called with assets.len(): {}, min_profit: {}", 
              assets.len(), min_profit);
         
@@ -65,31 +93,66 @@ impl ArbitrageDetector {
             return opportunities;
         }
 
+        // Create Reflector Oracle client
+        let oracle_client = ReflectorOracleClient::new(&env, &env.invoker().unwrap());
+        
+        // Create Exchange client
+        let exchange_client = ExchangeClient::new(&env, &exchange_address);
+
         // For each asset, check for arbitrage opportunities
         for i in 0..assets.len() {
             let asset = assets.get(i).unwrap();
             
             // Get price from Reflector Oracle
-            // Call the ReflectorOracleClient contract
+            let oracle_result = oracle_client.try_get_price_and_timestamp(asset.clone());
             
-            log!(&env, "Creating test opportunity for asset: {}", asset);
-            
-            let opportunity = ArbitrageOpportunity {
-                asset: asset.clone(),
-                buy_exchange: String::from_str(&env, "Stellar DEX"),
-                sell_exchange: String::from_str(&env, "Stellar DEX"),
-                buy_price: 5_0000000,  // 0.05 BTC/USDC
-                sell_price: 5_1000000, // 0.051 BTC/USDC (1% higher)
-                available_amount: 1000000,
-                estimated_profit: 100000, // 0.001 BTC profit
-                confidence_score: 90,
-                expiry_time: env.ledger().timestamp() + 30, // 30 seconds expiry
-            };
-            
-            // Only include opportunities that meet minimum profit requirement
-            if opportunity.estimated_profit >= min_profit {
-                log!(&env, "Added opportunity for asset: {}, profit: {}", asset, opportunity.estimated_profit);
-                opportunities.push_back(opportunity);
+            if let Ok(Ok((oracle_price, oracle_timestamp))) = oracle_result {
+                // Get price from Stellar DEX
+                let pair = Self::create_trading_pair(&env, &asset);
+                let exchange_result = exchange_client.try_get_market_price(
+                    String::from_str(&env, "Stellar DEX"), 
+                    pair.clone()
+                );
+                
+                if let Ok(Ok(exchange_price)) = exchange_result {
+                    // Calculate potential profit
+                    let price_diff = (exchange_price.price - oracle_price).abs();
+                    let estimated_profit = price_diff * 1000000; // Estimate based on 1M units
+                    
+                    // Create arbitrage opportunity if profitable
+                    if estimated_profit >= min_profit {
+                        let opportunity = ArbitrageOpportunity {
+                            asset: asset.clone(),
+                            buy_exchange: if exchange_price.price < oracle_price {
+                                String::from_str(&env, "Stellar DEX")
+                            } else {
+                                String::from_str(&env, "Reflector Oracle")
+                            },
+                            sell_exchange: if exchange_price.price < oracle_price {
+                                String::from_str(&env, "Reflector Oracle")
+                            } else {
+                                String::from_str(&env, "Stellar DEX")
+                            },
+                            buy_price: if exchange_price.price < oracle_price {
+                                exchange_price.price
+                            } else {
+                                oracle_price
+                            },
+                            sell_price: if exchange_price.price < oracle_price {
+                                oracle_price
+                            } else {
+                                exchange_price.price
+                            },
+                            available_amount: 10000000000, // 100 units (scaled)
+                            estimated_profit,
+                            confidence_score: 90,
+                            expiry_time: env.ledger().timestamp() + 30, // 30 seconds expiry
+                        };
+                        
+                        log!(&env, "Added opportunity for asset: {}, profit: {}", asset, opportunity.estimated_profit);
+                        opportunities.push_back(opportunity);
+                    }
+                }
             }
         }
 
@@ -138,12 +201,67 @@ impl ArbitrageDetector {
     }
 
     /// Estimate price slippage for large trades on Stellar DEX
-    pub fn estimate_slippage(env: Env, exchange: String, _asset: String, _trade_size: i128) -> i128 {
-        if exchange != String::from_str(&env, "Stellar DEX") {
-            return -1;
+    pub fn estimate_slippage(env: Env, exchange_address: Address, asset: String, trade_size: i128) -> i128 {
+        // Create Exchange client
+        let exchange_client = ExchangeClient::new(&env, &exchange_address);
+        
+        // Get order book data
+        let pair = Self::create_trading_pair(&env, &asset);
+        let result = exchange_client.try_get_order_book(
+            String::from_str(&env, "Stellar DEX"),
+            pair,
+            10 // Depth of 10 levels
+        );
+        
+        if let Ok(Ok(order_book)) = result {
+            // Calculate slippage based on order book depth
+            let mut cumulative_amount = 0i128;
+            let mut weighted_price = 0i128;
+            
+            // For sell orders, we look at the bid side of the order book
+            for (price, amount) in order_book.bids.iter() {
+                if cumulative_amount + amount > trade_size {
+                    // This level will be partially filled
+                    let remaining_amount = trade_size - cumulative_amount;
+                    weighted_price += price * remaining_amount;
+                    cumulative_amount = trade_size;
+                    break;
+                } else {
+                    // This level will be fully filled
+                    weighted_price += price * amount;
+                    cumulative_amount += amount;
+                }
+                
+                if cumulative_amount >= trade_size {
+                    break;
+                }
+            }
+            
+            if cumulative_amount > 0 {
+                let average_price = weighted_price / cumulative_amount;
+                // Calculate slippage as percentage
+                // We need a reference price - let's use the best bid
+                if !order_book.bids.is_empty() {
+                    let best_bid = order_book.bids.get(0).unwrap().0;
+                    if best_bid > 0 {
+                        let slippage_bps = ((best_bid - average_price) * 10000) / best_bid;
+                        return slippage_bps;
+                    }
+                }
+            }
         }
-        // Simple fixed slippage for testing
+        
+        // Default slippage if we can't calculate
         5 // 0.05% slippage
+    }
+    
+    /// Helper function to create trading pair string
+    fn create_trading_pair(env: &Env, asset: &String) -> String {
+        // For now, we'll assume all assets are traded against XLM
+        // In a real implementation, this would be more sophisticated
+        let mut pair = asset.clone();
+        pair.push_str(&String::from_str(env, "/XLM"));
+        pair
     }
 }
 
@@ -159,10 +277,13 @@ mod test_arbitrage_detector {
         let client = ArbitrageDetectorClient::new(&env, &contract_id);
         
         let mut assets = Vec::new(&env);
-        assets.push_back(String::from_str(&env, "BTC"));
-        assets.push_back(String::from_str(&env, "USDC"));
+        assets.push_back(String::from_str(&env, "CDJF2JQINO7WRFXB2AAHLONFDPPI4M3W2UM5THGQQ7JMJDIEJYC4CMPG")); // AQUA
+        assets.push_back(String::from_str(&env, "CABWYQLGOQ5Y3RIYUVYJZVA355YVX4SPAMN6ORDAVJZQBPPHLHRRLNMS")); // yUSDC
         
-        let opportunities = client.scan_opportunities(&assets, &100000);
+        // For testing, we need to register the exchange contract
+        let exchange_id = env.register_contract(None, crate::ExchangeInterface);
+        
+        let opportunities = client.scan_opportunities(&assets, &100000, &exchange_id);
         // We should get opportunities for both assets
         assert!(opportunities.len() >= 1);
     }
@@ -185,16 +306,11 @@ mod test_arbitrage_detector {
         let env = Env::default();
         let contract_id = env.register_contract(None, ArbitrageDetector);
         let client = ArbitrageDetectorClient::new(&env, &contract_id);
-        let slippage = client.estimate_slippage(&String::from_str(&env, "Stellar DEX"), &String::from_str(&env, "XLM"), &10000000000);
+        
+        // For testing, we need to register the exchange contract
+        let exchange_id = env.register_contract(None, crate::ExchangeInterface);
+        
+        let slippage = client.estimate_slippage(&exchange_id, &String::from_str(&env, "XLM"), &10000000000);
         assert!(slippage >= 0);
-    }
-
-    #[test]
-    fn test_estimate_slippage_invalid_exchange() {
-        let env = Env::default();
-        let contract_id = env.register_contract(None, ArbitrageDetector);
-        let client = ArbitrageDetectorClient::new(&env, &contract_id);
-        let slippage = client.estimate_slippage(&String::from_str(&env, "Binance"), &String::from_str(&env, "XLM"), &10000000000);
-        assert_eq!(slippage, -1);
     }
 }

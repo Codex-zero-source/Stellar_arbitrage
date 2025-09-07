@@ -3,7 +3,7 @@
 // This module handles communication with the Reflector Network oracle
 // to fetch real-time price data for arbitrage opportunities
 
-use soroban_sdk::{contract, contractimpl, contracterror, contracttype, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, contracterror, contracttype, Env, String, Vec, BytesN, Address, Map};
 
 #[contracttype]
 #[derive(Clone)]
@@ -40,6 +40,14 @@ pub struct OrderBookData {
     pub timestamp: u64,
 }
 
+#[contracttype]
+#[derive(Clone)]
+pub struct HistoricalPriceData {
+    pub prices: Vec<PriceData>,
+    pub twap: i128,
+    pub price_change_percentage: i128,
+}
+
 #[contracterror]
 #[derive(Debug)]
 pub enum OracleError {
@@ -47,7 +55,7 @@ pub enum OracleError {
     InvalidData = 2,
     PriceManipulationDetected = 3,
     ContractCallFailed = 4,
-    NotImplemented = 5,
+    AssetNotSupported = 5,
 }
 
 // Storage key for price data
@@ -57,111 +65,263 @@ pub struct PriceStorageKey {
     pub exchange: String,
 }
 
+// Interface for Reflector Oracle contract
+#[contractclient(name = "ReflectorOracle")]
+pub trait ReflectorOracleInterface {
+    fn get_price(&self, asset: String) -> (i128, u64);
+    fn get_twap(&self, asset: String, window: u64) -> i128;
+    fn get_historical_prices(&self, asset: String, count: u32) -> Vec<(i128, u64)>;
+    fn get_supported_assets(&self) -> Vec<String>;
+    fn get_decimals(&self) -> u32;
+    fn get_price_change(&self, asset: String, period: u64) -> i128;
+    fn get_order_book(&self, asset: String, depth: u32) -> (Vec<(i128, i128)>, Vec<(i128, i128)>);
+}
+
 #[contract]
 pub struct ReflectorOracleClient;
 
 #[contractimpl]
 impl ReflectorOracleClient {
     /// Fetch real-time price from Reflector oracle
-    pub fn fetch_latest_price(env: Env, asset: String, exchange: String) -> Result<PriceData, OracleError> {
-        // Implementation that returns data for testing
-        let price_data = PriceData {
-            asset: asset.clone(),
-            price: 5_0000000, // 0.05 BTC/USDC
-            volume_24h: 1000000000000, // Simulated volume
-            timestamp: env.ledger().timestamp(),
-            source: exchange.clone(),
-            confidence: 95,
-        };
+    pub fn get_price_and_timestamp(env: Env, asset_address: String) -> Result<(i128, u64), OracleError> {
+        // Get the Reflector Oracle contract address from environment
+        let oracle_address_str = env
+            .invoker()
+            .unwrap_or_else(|| panic!("Oracle address not found in environment"));
+        let oracle_address = Address::from_string(&oracle_address_str);
         
-        // Store in persistent storage for caching
-        let key = PriceStorageKey {
-            asset,
-            exchange,
-        };
-        env.storage().persistent().set(&key, &price_data);
+        // Create client for Reflector Oracle contract
+        let oracle_client = ReflectorOracleClient::new(&env, &oracle_address);
         
-        Ok(price_data)
-    }
-
-    /// Get price data (cached version)
-    pub fn get_price(env: Env, asset: String, exchange: String) -> Result<PriceData, OracleError> {
-        let key = PriceStorageKey {
-            asset,
-            exchange,
-        };
-        
-        if let Some(price_data) = env.storage().persistent().get::<PriceStorageKey, PriceData>(&key) {
-            // Check if data is not too old (older than 60 seconds)
-            let current_time = env.ledger().timestamp();
-            if current_time > price_data.timestamp && (current_time - price_data.timestamp) > 60 {
-                return Err(OracleError::InvalidData); // Data is too old
-            }
-            Ok(price_data)
-        } else {
-            Err(OracleError::InvalidData)
+        // Call the Reflector Oracle contract to get price and timestamp
+        match oracle_client.try_get_price(&asset_address) {
+            Ok((price, timestamp)) => Ok((price, timestamp)),
+            Err(_) => Err(OracleError::ContractCallFailed),
         }
     }
 
     /// Calculate time-weighted average price
-    pub fn get_twap(_env: Env, _asset: String, _period: u64) -> Result<i128, OracleError> {
-        // Simple implementation that always returns the same TWAP for testing
-        Ok(5_0000000) // 0.05 BTC/USDC
+    pub fn get_twap_price(env: Env, asset_address: String, records: u32) -> Result<i128, OracleError> {
+        // Get the Reflector Oracle contract address from environment
+        let oracle_address_str = env
+            .invoker()
+            .unwrap_or_else(|| panic!("Oracle address not found in environment"));
+        let oracle_address = Address::from_string(&oracle_address_str);
+        
+        // Create client for Reflector Oracle contract
+        let oracle_client = ReflectorOracleClient::new(&env, &oracle_address);
+        
+        // Calculate time window based on records (assuming 60 seconds per record)
+        let time_window = records as u64 * 60;
+        
+        // Call the Reflector Oracle contract to get TWAP
+        match oracle_client.try_get_twap(&asset_address, &time_window) {
+            Ok(twap) => Ok(twap),
+            Err(_) => Err(OracleError::ContractCallFailed),
+        }
+    }
+
+    /// Get historical prices
+    pub fn get_historical_prices(env: Env, asset_address: String, count: u32) -> Result<Vec<PriceData>, OracleError> {
+        // Get the Reflector Oracle contract address from environment
+        let oracle_address_str = env
+            .invoker()
+            .unwrap_or_else(|| panic!("Oracle address not found in environment"));
+        let oracle_address = Address::from_string(&oracle_address_str);
+        
+        // Create client for Reflector Oracle contract
+        let oracle_client = ReflectorOracleClient::new(&env, &oracle_address);
+        
+        // Call the Reflector Oracle contract to get historical prices
+        match oracle_client.try_get_historical_prices(&asset_address, &count) {
+            Ok(price_data) => {
+                let mut prices: Vec<PriceData> = Vec::new(&env);
+                let current_timestamp = env.ledger().timestamp();
+                
+                for (price, timestamp) in price_data.iter() {
+                    let price_data = PriceData {
+                        asset: asset_address.clone(),
+                        price: *price,
+                        volume_24h: 0, // Volume data would need separate call
+                        timestamp: *timestamp,
+                        source: String::from_str(&env, "Reflector Oracle"),
+                        confidence: 95,
+                    };
+                    prices.push_back(price_data);
+                }
+                
+                Ok(prices)
+            },
+            Err(_) => Err(OracleError::ContractCallFailed),
+        }
+    }
+
+    /// Get comprehensive price data
+    pub fn get_price_data(env: Env, asset_address: String) -> Result<PriceData, OracleError> {
+        // Get the Reflector Oracle contract address from environment
+        let oracle_address_str = env
+            .invoker()
+            .unwrap_or_else(|| panic!("Oracle address not found in environment"));
+        let oracle_address = Address::from_string(&oracle_address_str);
+        
+        // Create client for Reflector Oracle contract
+        let oracle_client = ReflectorOracleClient::new(&env, &oracle_address);
+        
+        // Call the Reflector Oracle contract to get price and timestamp
+        match oracle_client.try_get_price(&asset_address) {
+            Ok((price, timestamp)) => {
+                let price_data = PriceData {
+                    asset: asset_address.clone(),
+                    price,
+                    volume_24h: 0, // Volume data would need separate call
+                    timestamp,
+                    source: String::from_str(&env, "Reflector Oracle"),
+                    confidence: 95,
+                };
+                
+                Ok(price_data)
+            },
+            Err(_) => Err(OracleError::ContractCallFailed),
+        }
+    }
+
+    /// Get list of supported assets
+    pub fn get_supported_assets(env: Env) -> Result<Vec<String>, OracleError> {
+        // Get the Reflector Oracle contract address from environment
+        let oracle_address_str = env
+            .invoker()
+            .unwrap_or_else(|| panic!("Oracle address not found in environment"));
+        let oracle_address = Address::from_string(&oracle_address_str);
+        
+        // Create client for Reflector Oracle contract
+        let oracle_client = ReflectorOracleClient::new(&env, &oracle_address);
+        
+        // Call the Reflector Oracle contract to get supported assets
+        match oracle_client.try_get_supported_assets() {
+            Ok(assets) => Ok(assets),
+            Err(_) => Err(OracleError::ContractCallFailed),
+        }
+    }
+
+    /// Get oracle decimals
+    pub fn get_oracle_decimals(env: Env) -> Result<u32, OracleError> {
+        // Get the Reflector Oracle contract address from environment
+        let oracle_address_str = env
+            .invoker()
+            .unwrap_or_else(|| panic!("Oracle address not found in environment"));
+        let oracle_address = Address::from_string(&oracle_address_str);
+        
+        // Create client for Reflector Oracle contract
+        let oracle_client = ReflectorOracleClient::new(&env, &oracle_address);
+        
+        // Call the Reflector Oracle contract to get decimals
+        match oracle_client.try_get_decimals() {
+            Ok(decimals) => Ok(decimals),
+            Err(_) => Err(OracleError::ContractCallFailed),
+        }
+    }
+
+    /// Get price change percentage
+    pub fn get_price_change_percentage(env: Env, asset_address: String) -> Result<i128, OracleError> {
+        // Get the Reflector Oracle contract address from environment
+        let oracle_address_str = env
+            .invoker()
+            .unwrap_or_else(|| panic!("Oracle address not found in environment"));
+        let oracle_address = Address::from_string(&oracle_address_str);
+        
+        // Create client for Reflector Oracle contract
+        let oracle_client = ReflectorOracleClient::new(&env, &oracle_address);
+        
+        // Calculate period (24 hours in seconds)
+        let period = 24 * 60 * 60;
+        
+        // Call the Reflector Oracle contract to get price change
+        match oracle_client.try_get_price_change(&asset_address, &period) {
+            Ok(change) => Ok(change),
+            Err(_) => Err(OracleError::ContractCallFailed),
+        }
     }
 
     /// Validate price data for manipulation detection
     pub fn validate_price_deviation(
-        _current_price: i128,
-        _reference_price: i128,
+        current_price: i128,
+        reference_price: i128,
         max_deviation_bps: i128, // in basis points (1/100th of a percent)
     ) -> bool {
-        if _reference_price == 0 {
+        if reference_price == 0 {
             return false;
         }
         
         // Calculate the percentage deviation in basis points
-        let deviation_bps = ((_current_price - _reference_price).abs() * 10000) / _reference_price;
+        let deviation_bps = ((current_price - reference_price).abs() * 10000) / reference_price;
         
         // Check if deviation is within acceptable limits
         deviation_bps <= max_deviation_bps
     }
     
     /// Get order book data
-    pub fn get_order_book(_env: Env, _asset: String, _exchange: String) -> Result<OrderBookData, OracleError> {
-        // Return order book data for testing
-        let bids: Vec<OrderBookEntry> = Vec::new(&_env);
-        let asks: Vec<OrderBookEntry> = Vec::new(&_env);
+    pub fn get_order_book(env: Env, asset_address: String, _exchange: String) -> Result<OrderBookData, OracleError> {
+        // Get the Reflector Oracle contract address from environment
+        let oracle_address_str = env
+            .invoker()
+            .unwrap_or_else(|| panic!("Oracle address not found in environment"));
+        let oracle_address = Address::from_string(&oracle_address_str);
         
-        let order_book = OrderBookData {
-            bids,
-            asks,
-            timestamp: 0,
-        };
+        // Create client for Reflector Oracle contract
+        let oracle_client = ReflectorOracleClient::new(&env, &oracle_address);
         
-        Ok(order_book)
+        // Call the Reflector Oracle contract to get order book data
+        match oracle_client.try_get_order_book(&asset_address, &10) { // Get 10 levels of depth
+            Ok((bids, asks)) => {
+                let mut bid_entries: Vec<OrderBookEntry> = Vec::new(&env);
+                let mut ask_entries: Vec<OrderBookEntry> = Vec::new(&env);
+                
+                // Convert bids
+                for (price, amount) in bids.iter() {
+                    let entry = OrderBookEntry {
+                        price: *price,
+                        amount: *amount,
+                    };
+                    bid_entries.push_back(entry);
+                }
+                
+                // Convert asks
+                for (price, amount) in asks.iter() {
+                    let entry = OrderBookEntry {
+                        price: *price,
+                        amount: *amount,
+                    };
+                    ask_entries.push_back(entry);
+                }
+                
+                let order_book = OrderBookData {
+                    bids: bid_entries,
+                    asks: ask_entries,
+                    timestamp: env.ledger().timestamp(),
+                };
+                
+                Ok(order_book)
+            },
+            Err(_) => Err(OracleError::ContractCallFailed),
+        }
     }
     
-    /// Submit price data (for off-chain components to update prices)
-    pub fn submit_price_data(env: Env, price_data: PriceData) -> Result<(), OracleError> {
-        // Validate the price data
-        if price_data.price <= 0 {
-            return Err(OracleError::InvalidData);
+    /// Helper function to check if an asset is supported
+    fn is_asset_supported(asset_address: &String) -> bool {
+        let supported_assets = [
+            "CDJF2JQINO7WRFXB2AAHLONFDPPI4M3W2UM5THGQQ7JMJDIEJYC4CMPG", // AQUA
+            "CABWYQLGOQ5Y3RIYUVYJZVA355YVX4SPAMN6ORDAVJZQBPPHLHRRLNMS", // yUSDC
+            "CCBINL4TCQVEQN2Q2GO66RS4CWUARIECZEJA7JVYQO3GVF4LG6HJN236", // EURC
+            "CAWH4XMRQL7AJZCXEJVRHHMT6Y7ZPFCQCSKLIFJL3AVIQNC5TSVWKQOR", // BTCLN
+            "CAOTLCI7DROK3PI4ANOFPHPMBCFWVHURJM2EKQSO725SYCWBWE5U22OG", // KALE
+        ];
+        
+        for supported_asset in supported_assets.iter() {
+            if asset_address == supported_asset {
+                return true;
+            }
         }
-        
-        if price_data.timestamp == 0 {
-            return Err(OracleError::InvalidData);
-        }
-        
-        // Create storage key
-        let key = PriceStorageKey {
-            asset: price_data.asset.clone(),
-            exchange: price_data.source.clone(),
-        };
-        
-        // Store the price data in the contract's storage
-        env.storage().persistent().set(&key, &price_data);
-        
-        Ok(())
+        false
     }
 }
 
@@ -171,31 +331,45 @@ mod test_reflector_client {
     use soroban_sdk::{Env, String};
 
     #[test]
-    fn test_fetch_latest_price() {
+    fn test_get_price_and_timestamp() {
         let env = Env::default();
         let contract_id = env.register_contract(None, ReflectorOracleClient);
         let client = ReflectorOracleClientClient::new(&env, &contract_id);
 
-        let result = client.try_fetch_latest_price(&String::from_str(&env, "XLM"), &String::from_str(&env, "Stellar DEX"));
+        let result = client.try_get_price_and_timestamp(&String::from_str(&env, "CDJF2JQINO7WRFXB2AAHLONFDPPI4M3W2UM5THGQQ7JMJDIEJYC4CMPG")); // AQUA
 
         assert!(result.is_ok());
-        if let Ok(Ok(price_data)) = result {
-            assert!(price_data.price > 0);
-            assert!(price_data.asset.len() > 0);
+        if let Ok(Ok((price, timestamp))) = result {
+            assert!(price > 0);
+            assert!(timestamp > 0);
         }
     }
 
     #[test]
-    fn test_get_twap() {
+    fn test_get_twap_price() {
         let env = Env::default();
         let contract_id = env.register_contract(None, ReflectorOracleClient);
         let client = ReflectorOracleClientClient::new(&env, &contract_id);
 
-        let result = client.try_get_twap(&String::from_str(&env, "XLM"), &3600); // 1 hour TWAP
+        let result = client.try_get_twap_price(&String::from_str(&env, "CDJF2JQINO7WRFXB2AAHLONFDPPI4M3W2UM5THGQQ7JMJDIEJYC4CMPG"), &30); // 30 records
 
         assert!(result.is_ok());
         if let Ok(Ok(twap_value)) = result {
             assert!(twap_value > 0);
+        }
+    }
+
+    #[test]
+    fn test_get_supported_assets() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, ReflectorOracleClient);
+        let client = ReflectorOracleClientClient::new(&env, &contract_id);
+
+        let result = client.try_get_supported_assets();
+        
+        assert!(result.is_ok());
+        if let Ok(Ok(assets)) = result {
+            assert_eq!(assets.len(), 5); // We should have 5 supported assets
         }
     }
 
@@ -209,31 +383,21 @@ mod test_reflector_client {
     }
     
     #[test]
-    fn test_submit_and_get_price_data() {
+    fn test_get_order_book() {
         let env = Env::default();
         let contract_id = env.register_contract(None, ReflectorOracleClient);
         let client = ReflectorOracleClientClient::new(&env, &contract_id);
         
-        // Create price data to submit
-        let price_data = PriceData {
-            asset: String::from_str(&env, "XLM"),
-            price: 100000000, // 1.00 XLM
-            volume_24h: 1000000000000,
-            timestamp: env.ledger().timestamp(),
-            source: String::from_str(&env, "Stellar DEX"),
-            confidence: 95,
-        };
+        let result = client.try_get_order_book(
+            &String::from_str(&env, "CDJF2JQINO7WRFXB2AAHLONFDPPI4M3W2UM5THGQQ7JMJDIEJYC4CMPG"), // AQUA
+            &String::from_str(&env, "Stellar DEX")
+        );
         
-        // Submit the price data
-        let submit_result = client.submit_price_data(&price_data);
-        assert!(submit_result.is_ok());
-        
-        // Get the price data
-        let get_result = client.get_price(&String::from_str(&env, "XLM"), &String::from_str(&env, "Stellar DEX"));
-        assert!(get_result.is_ok());
-        
-        let fetched_data = get_result.unwrap();
-        assert_eq!(fetched_data.price, 100000000);
-        assert_eq!(fetched_data.asset, String::from_str(&env, "XLM"));
+        assert!(result.is_ok());
+        if let Ok(Ok(order_book)) = result {
+            assert!(order_book.bids.len() > 0);
+            assert!(order_book.asks.len() > 0);
+            assert!(order_book.timestamp > 0);
+        }
     }
 }
