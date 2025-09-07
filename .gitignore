@@ -1,0 +1,12 @@
+.lingma/
+.venv/
+.vscode/
+docs/
+my-app/
+off_chain/
+scripts/
+test_snapshots/
+.env
+target/
+contracts/target/
+web/dashboard/backend/.env

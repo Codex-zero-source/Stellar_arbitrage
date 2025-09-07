@@ -1,19 +1,10 @@
-[package]
-name = "stellar-arbitrage-contracts"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-soroban-sdk = { version = "23.0.0-rc.3" }
-
-[dev-dependencies]
-soroban-sdk = { version = "23.0.0-rc.3", features = ["testutils"] }
-
-[lib]
-crate-type = ["cdylib"]
-
-[features]
-testutils = ["soroban-sdk/testutils"]
+[workspace]
+members = [
+    "arbitrage_detector",
+    "trading_engine",
+    "reflector_oracle_client",
+]
+resolver = "2"
 
 [profile.release]
 opt-level = "z"

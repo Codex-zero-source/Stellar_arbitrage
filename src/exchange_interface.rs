@@ -30,7 +30,7 @@ impl ExchangeInterface {
     pub fn get_market_price(
         env: Env,
         exchange: String,
-        pair: String,
+        _pair: String,
     ) -> Result<MarketPrice, ExchangeError> {
         // Validate that we're only working with Stellar DEX
         if exchange != String::from_str(&env, "Stellar DEX") {
@@ -49,8 +49,8 @@ impl ExchangeInterface {
     pub fn get_order_book(
         env: Env,
         exchange: String,
-        pair: String,
-        depth: u32,
+        _pair: String,
+        _depth: u32,
     ) -> Result<OrderBook, ExchangeError> {
         // Validate that we're only working with Stellar DEX
         if exchange != String::from_str(&env, "Stellar DEX") {

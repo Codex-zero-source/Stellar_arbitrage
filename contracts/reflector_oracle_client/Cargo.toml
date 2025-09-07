@@ -1,0 +1,10 @@
+[package]
+name = "reflector_oracle_client"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+soroban-sdk = "23.0.0-rc.3"
+
+[lib]
+crate-type = ["rlib"]

@@ -1,72 +1,103 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
 
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@theme {
+  /* Cyberpunk Neon Color Palette */
+  --background: 12 2 33; /* Deep indigo/purple */
+  --foreground: 240 240 240;
+  --neon-cyan: 0 246 255;
+  --neon-magenta: 255 0 255;
+  --neon-lime: 57 255 20;
+  
+  /* shadcn/ui variables */
+  --background-dark: 12 2 33;
+  --card: 10 10 20;
+  --card-foreground: 240 240 240;
+  --border: 0 246 255;
+  --input: 0 246 255;
+  --primary: 0 246 255;
+  --primary-foreground: 0 0 0;
+  --secondary: 255 0 255;
+  --secondary-foreground: 255 255 255;
+  --destructive: 239 68 68;
+  --destructive-foreground: 250 250 250;
+  --ring: 0 246 255;
+  --radius: 0.5rem;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
+/*
+  Use `@theme` to define variables for your project.
+  Define them in `:root` for light mode and `:root.dark` for dark mode.
+*/
+
+/*
+  Use `@source` to add additional files to the source files scanned by Tailwind.
+  This is useful when you want to use `@apply` with classes that aren't used
+  anywhere in your project.
+*/
+
+@utility text-glow {
+  text-shadow: 0 0 4px currentcolor;
 }
 
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
+@utility terminal {
+  font-family: 'Fira Code', 'Courier New', monospace;
+  font-size: 0.9rem;
+  border-radius: 0.25rem;
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+@utility terminal-line {
+  text-shadow: 0 0 5px currentcolor;
 }
 
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
+/* Apply background to body */
+@layer base {
+  body {
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    color: rgb(var(--foreground));
+    font-family: 'Courier New', Courier, monospace; /* Classic hacker font */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizelegibility;
+    min-height: 100vh;
   }
-  a:hover {
-    color: #747bff;
+}
+
+/* Scrollbar styling for a more thematic look */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgb(var(--background-dark));
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--neon-magenta));
+  border-radius: 5px;
+  box-shadow: 0 0 5px rgb(var(--neon-magenta));
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(255 77 255);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .kpi-container {
+    flex-direction: column;
+    align-items: center;
   }
-  button {
-    background-color: #f9f9f9;
+  
+  .kpi-card {
+    width: 80%;
+    max-width: 300px;
+  }
+  
+  .dashboard {
+    padding: 10px;
+  }
+  
+  .dashboard h1 {
+    font-size: 2rem;
   }
 }

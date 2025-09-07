@@ -1,87 +1,66 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import io from 'socket.io-client';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
-const SocketContext = createContext();
+const WebSocketContext = createContext(null);
 
-export const useSocket = () => {
-  return useContext(SocketContext);
-};
+export const useWebSocket = () => useContext(WebSocketContext);
 
-export const SocketProvider = ({ children }) => {
-  const [socket, setSocket] = useState(null);
-  const [isConnected, setIsConnected] = useState(false);
-  const [stellarData, setStellarData] = useState({
-    lastBlock: 0,
-    networkStatus: 'Disconnected',
-    dexPrices: {}
-  });
+export const WebSocketProvider = ({ children }) => {
+  const [logs, setLogs] = useState([]);
 
   useEffect(() => {
-    // In a real implementation, you would connect to your backend server
-    // For now, we'll create a more realistic mock socket for Stellar DEX data
-    const mockSocket = {
-      on: (event, callback) => {
-        console.log(`Listening for Stellar event: ${event}`);
-        
-        // Simulate real-time data updates
-        if (event === 'stellarData') {
-          // Simulate periodic data updates
-          const interval = setInterval(() => {
-            const mockData = {
-              lastBlock: Math.floor(Math.random() * 1000000) + 30000000,
-              networkStatus: 'Connected',
-              dexPrices: {
-                'XLM/USD-DEX1': 0.12 + (Math.random() * 0.02 - 0.01),
-                'XLM/USD-DEX2': 0.12 + (Math.random() * 0.02 - 0.01),
-                'BTC/USD-DEX1': 25000 + (Math.random() * 1000 - 500),
-                'BTC/USD-DEX2': 25000 + (Math.random() * 1000 - 500)
-              }
-            };
-            callback(mockData);
-          }, 3000);
-          
-          // Clean up interval on unmount
-          return () => clearInterval(interval);
+    // Connect to the actual WebSocket server on port 8768
+    const ws = new WebSocket('ws://localhost:8768');
+    
+    ws.onopen = () => {
+      console.log('Connected to arbitrage engine WebSocket');
+      setLogs(prevLogs => [...prevLogs, {type: 'info', content: 'Status: Connected to arbitrage engine'}]);
+    };
+    
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type && data.content) {
+          // New structured message format
+          setLogs(prevLogs => [...prevLogs, {type: data.type, content: data.content}]);
+        } else if (data.log) {
+          // Old format for backward compatibility
+          setLogs(prevLogs => [...prevLogs, {type: 'log', content: data.log}]);
+        } else if (data.error) {
+          // Old format for backward compatibility
+          setLogs(prevLogs => [...prevLogs, {type: 'error', content: data.error}]);
+        } else {
+          // Handle any other message format
+          setLogs(prevLogs => [...prevLogs, {type: 'log', content: event.data}]);
         }
-      },
-      emit: (event, data) => {
-        console.log(`Emitting Stellar event: ${event}`, data);
-      },
-      disconnect: () => {
-        console.log('Disconnecting from Stellar network');
-        setIsConnected(false);
+      } catch (e) {
+        // If it's not JSON, treat it as a plain log message
+        setLogs(prevLogs => [...prevLogs, {type: 'log', content: event.data}]);
       }
     };
+    
+    ws.onclose = () => {
+      console.log('Disconnected from arbitrage engine WebSocket');
+      setLogs(prevLogs => [...prevLogs, {type: 'info', content: 'Status: Disconnected from arbitrage engine'}]);
+    };
+    
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      setLogs(prevLogs => [...prevLogs, {type: 'error', content: 'Error: WebSocket connection failed'}]);
+    };
 
-    setSocket(mockSocket);
-    setIsConnected(true);
-
-    // Simulate connection to Stellar network
-    setTimeout(() => {
-      setStellarData({
-        lastBlock: 30125432,
-        networkStatus: 'Connected',
-        dexPrices: {
-          'XLM/USD-DEX1': 0.1234,
-          'XLM/USD-DEX2': 0.1245,
-          'BTC/USD-DEX1': 25432.12,
-          'BTC/USD-DEX2': 25456.78
-        }
-      });
-    }, 1000);
-
+    // Clean up the WebSocket connection on component unmount
     return () => {
-      if (socket) {
-        socket.disconnect();
-      }
+      ws.close();
     };
   }, []);
 
+  const value = {
+    logs,
+  };
+
   return (
-    <SocketContext.Provider value={{ socket, isConnected, stellarData }}>
+    <WebSocketContext.Provider value={value}>
       {children}
-    </SocketContext.Provider>
+    </WebSocketContext.Provider>
   );
 };
-
-export default SocketContext;

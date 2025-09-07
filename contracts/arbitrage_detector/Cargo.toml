@@ -1,0 +1,14 @@
+[package]
+name = "arbitrage_detector"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+soroban-sdk = "23.0.0-rc.3"
+reflector_oracle_client = { path = "../reflector_oracle_client" }
+
+[dev-dependencies]
+soroban-sdk = { version = "23.0.0-rc.3", features = ["testutils"] }
+
+[lib]
+crate-type = ["cdylib"]

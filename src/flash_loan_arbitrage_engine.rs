@@ -44,7 +44,7 @@ impl FlashArbitrageEngine {
     pub fn execute_flash_arbitrage(
         env: Env,
         params: FlashLoanParameters,
-        borrower: Address,
+        _borrower: Address,
     ) -> Result<ArbitrageResult, FlashLoanError> {
         // Validate arbitrage parameters
         Self::validate_arbitrage_parameters(env.clone(), params.clone(), env.ledger().timestamp())?;
@@ -120,7 +120,7 @@ impl FlashArbitrageEngine {
         }
         
         // Validate flash loan provider is XycLoans
-        let xycloans_address = String::from_str(&env, "CB64D3G7SM2RTH6JSGG34DDTFTQ5CFDKVDZJZSODMCX4NJ2HV2KN7OHT");
+        let _xycloans_address = String::from_str(&env, "CB64D3G7SM2RTH6JSGG34DDTFTQ5CFDKVDZJZSODMCX4NJ2HV2KN7OHT");
         let provider = String::from_str(&env, "CB64D3G7SM2RTH6JSGG34DDTFTQ5CFDKVDZJZSODMCX4NJ2HV2KN7OHT");
         if params.flash_loan_provider != provider {
             return Err(FlashLoanError::InvalidParameters);
@@ -132,8 +132,8 @@ impl FlashArbitrageEngine {
     /// Handle arbitrage failure and recovery
     pub fn handle_arbitrage_failure(
         env: Env,
-        error: FlashLoanError,
-        params: FlashLoanParameters,
+        _error: FlashLoanError,
+        _params: FlashLoanParameters,
     ) -> ArbitrageResult {
         // Log the error for debugging
         // In a real implementation, this would emit events or store logs
