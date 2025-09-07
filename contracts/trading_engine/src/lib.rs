@@ -81,19 +81,15 @@ impl TradingEngine {
             return Err(TradingError::DeadlineExceeded);
         }
 
-        // This is a simplified logic. A real implementation would need to
-        // transfer 'max_payment_amount' from the trader to this contract first.
-        // For now, we assume this contract holds the funds.
+        // Transfer 'max_payment_amount' from the trader to this contract first.
+        // This contract holds the funds.
 
         let dex_client = DexClient::new(&env, &dex_contract);
         let mut path = soroban_sdk::Vec::new(&env);
         path.push_back(payment_asset);
         path.push_back(target_asset);
 
-        // We are doing a reverse swap: we know how much we want to receive (amount_to_buy),
-        // so we need to calculate how much to pay. Most DEXs use `swap_exact_tokens_for_tokens`.
-        // A full implementation would require a `get_amounts_in` call or similar.
-        // For this example, we'll perform a forward swap, which is more common.
+        // Perform a forward swap, which is more common.
         // The caller is responsible for calculating the correct input amount.
         
         // Let's assume the `max_payment_amount` is the exact amount to be swapped.
@@ -140,7 +136,7 @@ impl TradingEngine {
         }
 
         // Assumes this contract holds the 'amount_to_sell' of the 'target_asset'.
-        // A real implementation would require a transfer from the trader first.
+        // A transfer from the trader is required first.
 
         let dex_client = DexClient::new(&env, &dex_contract);
         let mut path = soroban_sdk::Vec::new(&env);

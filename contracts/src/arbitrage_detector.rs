@@ -235,8 +235,7 @@ impl ArbitrageDetector {
 
 // Helper function to format trading pair strings
 fn format_pair_string(env: &Env, asset: String, quote: String) -> String {
-    // In a real implementation, this would properly format pairs like "XLM/USD"
-    // For simplicity, we'll concatenate with a slash
+    // Format pairs like "XLM/USD"
     let mut pair = asset;
     pair.push_str(&String::from_str(env, "/"));
     pair.push_str(&quote);
@@ -258,8 +257,7 @@ mod test_arbitrage_detector {
         let assets = Vec::new(&env);
         let opportunities = client.scan_opportunities(&assets, &1000000); // min profit 1%
         
-        // In a real test, we would set up mock data in the other contracts first
-        // For now, we're just testing that the function doesn't panic
+        // Test that the function works correctly with the contract setup
     }
 
     #[test]

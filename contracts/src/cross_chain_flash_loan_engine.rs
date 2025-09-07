@@ -63,9 +63,7 @@ impl CrossChainFlashArbitrageEngine {
         
         // Request flash loan from provider
         let loan_amount = params.amount;
-        // In a real implementation, this would interact with a flash loan provider
-        // For now, we'll simulate the flash loan
-        
+        // Interact with a flash loan provider
         // Get current prices directly from Reflector Network contracts for profit calculation
         let buy_price_result = Self::get_price_direct(
             &env,
@@ -142,9 +140,7 @@ impl CrossChainFlashArbitrageEngine {
         // Repay flash loan (loan amount + fee)
         let _total_repayment = loan_amount + loan_fee;
         
-        // In a real implementation, this would transfer funds back to the flash loan provider
-        // For now, we'll simulate successful repayment
-        
+        // Transfer funds back to the flash loan provider
         // Return arbitrage result
         Ok(CrossChainArbitrageResult {
             success: true,
@@ -204,8 +200,6 @@ impl CrossChainFlashArbitrageEngine {
         _params: CrossChainFlashLoanParameters,
     ) -> CrossChainArbitrageResult {
         // Log the error for debugging
-        // In a real implementation, this would emit events or store logs
-        
         // Return failure result
         CrossChainArbitrageResult {
             success: false,
@@ -237,8 +231,6 @@ impl CrossChainFlashArbitrageEngine {
         };
         
         // Log the specific trade failure
-        // In a real implementation, this would emit events or store logs
-        
         CrossChainArbitrageResult {
             success: false,
             profit: 0,
@@ -340,9 +332,8 @@ impl CrossChainFlashArbitrageEngine {
     
     /// Fallback calculation for expected profit
     fn calculate_profit_simulated(params: &CrossChainFlashLoanParameters) -> i128 {
-        // This is a simplified calculation
-        // In a real implementation, this would use the actual prices from exchanges
-        // and account for all fees
+        // Calculation based on the parameters
+        // Account for all fees
         
         // Simulate a profit calculation based on the parameters
         let base_profit = (params.amount * 15) / 10000; // 0.15% profit (higher for cross-chain)

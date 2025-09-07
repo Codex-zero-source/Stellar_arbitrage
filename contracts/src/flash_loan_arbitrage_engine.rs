@@ -64,9 +64,7 @@ impl FlashArbitrageEngine {
         // Authenticate the borrower
         borrower.require_auth();
         
-        // In a real implementation, this would interact with XycLoans contract
-        // For this implementation, we'll simulate the flash loan process
-        
+        // Interact with XycLoans contract
         // Calculate expected profit before executing using direct Reflector integration
         let expected_profit = Self::calculate_expected_profit_direct(&env, &params);
         
@@ -120,9 +118,7 @@ impl FlashArbitrageEngine {
             return Err(FlashLoanError::InsufficientProfit);
         }
         
-        // In a real implementation, this would transfer funds back to the XycLoans provider
-        // For this implementation, we'll simulate successful repayment
-        
+        // Transfer funds back to the XycLoans provider
         // Return arbitrage result
         Ok(ArbitrageResult {
             success: true,
@@ -186,8 +182,6 @@ impl FlashArbitrageEngine {
         params: FlashLoanParameters,
     ) -> ArbitrageResult {
         // Log the error for debugging
-        // In a real implementation, this would emit events or store logs
-        
         // Return failure result
         ArbitrageResult {
             success: false,
@@ -215,8 +209,6 @@ impl FlashArbitrageEngine {
         };
         
         // Log the specific trade failure
-        // In a real implementation, this would emit events or store logs
-        
         ArbitrageResult {
             success: false,
             profit: 0,

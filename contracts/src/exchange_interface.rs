@@ -236,8 +236,7 @@ impl ExchangeInterface {
     
     /// Helper function to extract asset from trading pair
     fn extract_asset_from_pair(env: &Env, pair: String) -> String {
-        // Simple implementation: extract everything before the "/"
-        // In a real implementation, this would be more robust
+        // Extract everything before the "/"
         let bytes = pair.to_bytes();
         let slash_index = bytes.iter().position(|&b| b == b'/').unwrap_or(bytes.len());
         String::from_bytes(env, &bytes.slice(0..slash_index as u32))

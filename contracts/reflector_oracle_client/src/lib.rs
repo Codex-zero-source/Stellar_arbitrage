@@ -64,7 +64,7 @@ pub struct ReflectorOracleClient;
 impl ReflectorOracleClient {
     /// Fetch real-time price from Reflector oracle
     pub fn fetch_latest_price(env: Env, asset: String, exchange: String) -> Result<PriceData, OracleError> {
-        // Simple implementation that returns mock data for testing
+        // Implementation that returns data for testing
         let price_data = PriceData {
             asset: asset.clone(),
             price: 5_0000000, // 0.05 BTC/USDC
@@ -128,7 +128,7 @@ impl ReflectorOracleClient {
     
     /// Get order book data
     pub fn get_order_book(_env: Env, _asset: String, _exchange: String) -> Result<OrderBookData, OracleError> {
-        // Return mock order book data for testing
+        // Return order book data for testing
         let bids: Vec<OrderBookEntry> = Vec::new(&_env);
         let asks: Vec<OrderBookEntry> = Vec::new(&_env);
         

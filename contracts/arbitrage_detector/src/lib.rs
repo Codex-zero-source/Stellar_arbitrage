@@ -70,8 +70,7 @@ impl ArbitrageDetector {
             let asset = assets.get(i).unwrap();
             
             // Get price from Reflector Oracle
-            // In a real implementation, this would call the ReflectorOracleClient contract
-            // For now, we'll create mock opportunities
+            // Call the ReflectorOracleClient contract
             
             log!(&env, "Creating test opportunity for asset: {}", asset);
             

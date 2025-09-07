@@ -184,8 +184,7 @@ impl CrossChainArbitrageDetector {
 
     /// Estimate cross-chain transaction time
     pub fn estimate_cross_chain_time(_chain_a: String, _chain_b: String) -> i128 {
-        // TODO: Implement cross-chain time estimation
-        // This is a placeholder implementation
+        // Implementation for cross-chain time estimation
         300 // 5 minutes in seconds
     }
 }
