@@ -29,36 +29,19 @@ The platform consists of several core components:
 6. **Risk Management System** - Monitors and controls trading risks
 7. **Cross-Chain Modules** - Enables arbitrage opportunities across Stellar and Ethereum
 
-
 ## Smart Contract Addresses and Contract IDs
+
+```
 STELLAR_NETWORK=TESTNET
 STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
 STELLAR_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
 STELLAR_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
 
-
 ARBITRAGE_DETECTOR_CONTRACT_ID=CBQHRSQGINQL44XCAIMVEEJRNO7NUXEGRPF2I2E7SK2XBMFXY6XVOT4J
 REFLECTOR_ORACLE_CONTRACT_ID=CDHXGW5XPQN34WP3GQZ3QA76ECI7RP3GE4HRASYPTRUJXYDWOTLVMAPK
 TRADING_ENGINE_CONTRACT_ID=CC52KVUOD5YWXHKO55TO3FQ5QDY7ELWM7FHZ4JVE7CQWXR7KCTEU7WUY
-```
 
-## Running the Platform
-
-### Start the Web Dashboard
-The web dashboard displays real-time arbitrage opportunities and trade execution:
-```bash
-cd web/dashboard
-npm install
-npm run dev
-```
-
-# Flash Loan Provider
 FLASH_LOAN_PROVIDER=CB75LG2KULDDIFL2BBZHIBXDPXELJJFWRRHKJZ2H5JF7C4DT6GHW4PJQ
-
-# Simulation Parameters
-NUM_ACCOUNTS=10
-SIMULATION_INTERVAL=10
-ARBITRAGE_SCAN_INTERVAL=15
 ```
 
 ## Smart Contract Structure
@@ -96,6 +79,24 @@ ARBITRAGE_SCAN_INTERVAL=15
    - Assesses trade risk based on multiple factors
    - Monitors position exposure and drawdowns
    - Implements stop-loss functionality
+
+### Cross-Chain Contracts
+
+1. **Uniswap Interface**
+   - Provides integration with Uniswap for Ethereum-based trades
+   - Fetches market prices and liquidity data
+
+2. **Cross-Chain Arbitrage Detector**
+   - Identifies cross-chain arbitrage opportunities
+   - Calculates profitability across different blockchains
+
+3. **Cross-Chain Trading Engine**
+   - Executes trades across different blockchains
+   - Handles cross-chain order management
+
+4. **Cross-Chain Flash Loan Engine**
+   - Handles cross-chain flash loan arbitrage
+   - Coordinates borrowing and trading across chains
 
 ## Troubleshooting
 
