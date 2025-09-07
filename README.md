@@ -1,6 +1,6 @@
 # Stellar Arbitrage Trading Platform
 
-A blockchain-based arbitrage detection and execution system built on the Stellar network using Soroban smart contracts. This platform identifies profitable arbitrage opportunities across decentralized exchanges (DEXs) and executes trades using flash loans for capital-efficient trading.
+A blockchain-based arbitrage detection and execution system built on the Stellar network using Soroban smart contracts. This platform identifies profitable arbitrage opportunities across decentralized exchanges (DEXs) and executes trades using flash loans (Xycloans) for capital-efficient trading.
 
 ## Project Overview
 
@@ -29,55 +29,17 @@ The platform consists of several core components:
 6. **Risk Management System** - Monitors and controls trading risks
 7. **Cross-Chain Modules** - Enables arbitrage opportunities across Stellar and Ethereum
 
-## Prerequisites
 
-1. **Rust Toolchain**: Install Rust with the wasm32 target
-   ```bash
-   rustup target add wasm32-unknown-unknown
-   ```
-
-2. **Stellar CLI Tools**: Install Stellar CLI
-   ```bash
-   cargo install --locked stellar-cli
-   ```
-
-3. **Node.js**: For web dashboard components (v14 or higher)
-
-## Smart Contract Deployment
-
-### 1. Compile Contracts
-```bash
-cd contracts
-stellar contract build
-```
-
-This will build all contracts in the workspace and generate WASM files in the `target/wasm32-unknown-unknown/release/` directory.
-
-### 2. Deploy to Stellar Testnet
-```bash
-# Deploy Reflector Oracle Client
-stellar contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/reflector_oracle_client.wasm \
-  --source <SOURCE_ACCOUNT_SECRET_KEY> \
-  --network testnet
-
-# Deploy Arbitrage Detector
-stellar contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/arbitrage_detector.wasm \
-  --source <SOURCE_ACCOUNT_SECRET_KEY> \
-  --network testnet
-```
-
-### 3. Update Environment Variables
-Update the `.env` file with your deployed contract IDs:
-```env
+## Smart Contract Addresses and Contract IDs
 STELLAR_NETWORK=TESTNET
 STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
 STELLAR_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
 STELLAR_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
 
-ARBITRAGE_DETECTOR_CONTRACT_ID=your_deployed_arbitrage_detector_id
-REFLECTOR_ORACLE_CONTRACT_ID=your_deployed_reflector_oracle_client_id
+
+ARBITRAGE_DETECTOR_CONTRACT_ID=CBQHRSQGINQL44XCAIMVEEJRNO7NUXEGRPF2I2E7SK2XBMFXY6XVOT4J
+REFLECTOR_ORACLE_CONTRACT_ID=CDHXGW5XPQN34WP3GQZ3QA76ECI7RP3GE4HRASYPTRUJXYDWOTLVMAPK
+TRADING_ENGINE_CONTRACT_ID=CC52KVUOD5YWXHKO55TO3FQ5QDY7ELWM7FHZ4JVE7CQWXR7KCTEU7WUY
 ```
 
 ## Running the Platform
@@ -89,22 +51,6 @@ cd web/dashboard
 npm install
 npm run dev
 ```
-
-## Configuration
-
-Set up your environment variables in `web/dashboard/backend/.env`:
-
-```env
-# Stellar Network Configuration
-STELLAR_NETWORK=TESTNET
-STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
-STELLAR_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
-STELLAR_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
-
-# Contract IDs (updated with deployed addresses)
-ARBITRAGE_DETECTOR_CONTRACT_ID=your_deployed_arbitrage_detector_id
-REFLECTOR_ORACLE_CONTRACT_ID=your_deployed_reflector_oracle_client_id
-TRADING_ENGINE_CONTRACT_ID=your_deployed_trading_engine_id
 
 # Flash Loan Provider
 FLASH_LOAN_PROVIDER=CB75LG2KULDDIFL2BBZHIBXDPXELJJFWRRHKJZ2H5JF7C4DT6GHW4PJQ
@@ -131,7 +77,9 @@ ARBITRAGE_SCAN_INTERVAL=15
 
 3. **Exchange Interface**
    - Provides unified interface to interact with various exchanges
-   - Fetches market prices and order book data
+   - Fetches market prices and order book data:
+      - Simulated order book and liquidity using multiple accounts created to create Buy/Sell orders.
+      - Custom created assets will be tracked by the reflector oracle contract endpoint.
    - Supports DEX integrations
 
 4. **Flash Loan Arbitrage Engine**
@@ -149,40 +97,6 @@ ARBITRAGE_SCAN_INTERVAL=15
    - Monitors position exposure and drawdowns
    - Implements stop-loss functionality
 
-### Cross-Chain Contracts
-
-1. **Uniswap Interface**
-   - Provides integration with Uniswap for Ethereum-based trades
-   - Fetches market prices and liquidity data
-
-2. **Cross-Chain Arbitrage Detector**
-   - Identifies cross-chain arbitrage opportunities
-   - Calculates profitability across different blockchains
-
-3. **Cross-Chain Trading Engine**
-   - Executes trades across different blockchains
-   - Handles cross-chain order management
-
-4. **Cross-Chain Flash Loan Engine**
-   - Handles cross-chain flash loan arbitrage
-   - Coordinates borrowing and trading across chains
-
-## Testing
-
-### Unit Tests
-Run contract unit tests:
-```bash
-cd contracts
-cargo test
-```
-
-### Integration Tests
-Run integration tests:
-```bash
-cd web/dashboard/backend
-python test_contracts.py
-```
-
 ## Troubleshooting
 
 ### Common Issues
@@ -191,34 +105,6 @@ python test_contracts.py
 2. **Insufficient funds**: Make sure trading accounts have sufficient XLM for transaction fees
 3. **Network connectivity**: Verify RPC endpoint URLs are accessible
 4. **Stellar CLI issues**: Try reinstalling with `cargo install --locked stellar-cli`
-
-### Debugging
-
-Use the debug scripts in `web/dashboard/backend/`:
-- `debug_contract_call.py` - Debug contract calls
-- `test_contracts.py` - Test contract functionality
-- `address_test.py` - Test address parameter passing
-
-## Development Progress
-
-### Completed Components
-- ✅ Reflector Oracle Client with TWAP calculations
-- ✅ Arbitrage Detector with core logic
-- ✅ Exchange Interface for DEX operations
-- ✅ Flash Loan Arbitrage Engine with XycLoans integration
-- ✅ Trading Execution Engine for DEX trades
-- ✅ Risk Management System with real position monitoring
-- ✅ Cross-Chain modules for Ethereum integration
-- ✅ Web dashboard with real-time monitoring
-- ✅ Unit tests for all components
-
-### Next Steps for Production Deployment
-1. Implement actual Stellar DEX API connections
-2. Integrate with Uniswap smart contracts
-3. Add real-time market data feeds
-4. Conduct comprehensive integration testing
-5. Prepare for security audit
-6. Deploy to testnet for validation
 
 ## Contributing
 
@@ -231,12 +117,3 @@ Use the debug scripts in `web/dashboard/backend/`:
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Documentation
-
-For more detailed information, check the documentation in the [docs](docs/) directory:
-- [Project Summary](docs/PROJECT_SUMMARY.md)
-- [Implementation Report](docs/FINAL_IMPLEMENTATION_REPORT.md)
-- [Deployment Guide](docs/DEPLOYMENT_GUIDE.md)
-- [Development Plan](docs/development_plan.md)
-- [Development Timeline](docs/development_timeline.md)
