@@ -2,7 +2,7 @@ import time
 import os
 from dotenv import load_dotenv
 from stellar_sdk import Server, TransactionBuilder, Network, Asset, Keypair
-from stellar_sdk.sep.ticker import Account
+# Account import not needed
 from error_handler import check_account_balance, ensure_sufficient_fee
 
 # Load environment variables
@@ -10,7 +10,7 @@ load_dotenv()
 
 class TradingExecutor:
     def __init__(self):
-        self.server = Server(os.getenv('STELLAR_HORIZON_URL'))
+        self.server = Server(os.getenv('STELLAR_HORIZON_URL', 'https://horizon-testnet.stellar.org'))
         self.network_passphrase = os.getenv('STELLAR_NETWORK_PASSPHRASE')
 
     def execute_arbitrage_trade(self, trader_keypair: Keypair, opportunity: dict):
@@ -37,41 +37,75 @@ class TradingExecutor:
                     return {"status": "failed", "reason": "insufficient_funds"}
             
             # Extract opportunity details
-            asset_pair = opportunity.get('asset', 'BTC/USDC')
+            asset_pair = opportunity.get('asset', 'AQUA/yUSDC')
             buy_exchange = opportunity.get('buy_exchange', 'Stellar DEX')
             sell_exchange = opportunity.get('sell_exchange', 'Reflector')
-            buy_price = opportunity.get('buy_price', 100000000)  # Default to 1 with 8 decimals
-            sell_price = opportunity.get('sell_price', 105000000)  # Default to 1.05 with 8 decimals
+            buy_price = opportunity.get('buy_price', 1500000)  # Default to 0.015 with 8 decimals for AQUA
+            sell_price = opportunity.get('sell_price', 1550000)  # Default to 0.0155 with 8 decimals for AQUA
             amount = opportunity.get('available_amount', 10000000000)  # Default to 100 with 8 decimals
+            
+            # Initialize selling_code
+            selling_code = "AQUA"
             
             # For this simulation, we'll just create a simple buy order
             # In a real implementation, this would involve more complex multi-step transactions
             
             builder = TransactionBuilder(
                 source_account=source_account,
-                network_passphrase=self.network_passphrase,
+                network_passphrase=self.network_passphrase or 'Test SDF Network ; September 2015',
                 base_fee=100,
             ).set_timeout(30)
             
-            # Parse asset pair (simplified for BTC/USDC)
+            # Parse asset pair (using real Reflector-tracked assets)
             if '/' in asset_pair:
                 selling_code, buying_code = asset_pair.split('/')
-                # For simulation, we'll assume the issuer is the first account
-                # In a real implementation, you'd need to get the actual issuer
-                selling_asset = Asset(selling_code, source_account.account.account_id)
-                buying_asset = Asset(buying_code, source_account.account.account_id)
+                # Map to real asset issuers
+                asset_issuers = {
+                    "AQUA": "GBNZILSTVQZ4R7IKQDGHYGY2QXL5QOFJYQMXPKWRRM5PAV7Y4M67AQUA",
+                    "yUSDC": "GDGTVWSM4MGS4T7Z6W4RPWOCHE2I6RDFCIFZGS3DOA63LWQTRNZNTTFF",
+                    "EURC": "GDHU6WRG4IEQXM5NZ4BMPKOXHW76MZM4Y2IEMFDVXBSDP6SJY4ITNPP2",
+                    "BTCLN": "GDPKQ2TSNJOFSEE7XSUXPWRP27H6GFGLWD7JCHNEYYWQVGFA543EVBVT",
+                    "KALE": "GBDVX4VELCDSQ54KQJYTNHXAHFLBCA77ZY2USQBM4CSHTTV7DME7KALE",
+                    "XLM": None  # Native asset, no issuer
+                }
+                
+                # Create assets with proper issuers
+                if selling_code == "XLM":
+                    selling_asset = Asset.native()
+                else:
+                    selling_issuer = asset_issuers.get(selling_code, trader_keypair.public_key)
+                    selling_asset = Asset(selling_code, selling_issuer)
+                    
+                if buying_code == "XLM":
+                    buying_asset = Asset.native()
+                else:
+                    buying_issuer = asset_issuers.get(buying_code, trader_keypair.public_key)
+                    buying_asset = Asset(buying_code, buying_issuer)
             else:
-                # Default to BTC/USDC
-                selling_asset = Asset("BTC", source_account.account.account_id)
-                buying_asset = Asset("USDC", source_account.account.account_id)
+                # Default to AQUA/yUSDC
+                selling_asset = Asset("AQUA", "GBNZILSTVQZ4R7IKQDGHYGY2QXL5QOFJYQMXPKWRRM5PAV7Y4M67AQUA")
+                buying_asset = Asset("yUSDC", "GDGTVWSM4MGS4T7Z6W4RPWOCHE2I6RDFCIFZGS3DOA63LWQTRNZNTTFF")
             
             # Validate that we have sufficient balance of the selling asset
+            # Use check_account_balance to get the balances
+            balance_info = check_account_balance(trader_keypair.public_key)
             selling_asset_balance = 0
-            for balance in source_account.account.balances:
-                if (balance.asset_type == "native" and selling_code == "XLM") or \
-                   (hasattr(balance, 'asset_code') and balance.asset_code == selling_code):
-                    selling_asset_balance = float(balance.balance)
-                    break
+            if "balances" in balance_info:
+                balances = balance_info["balances"]
+                # Cast to dict to help type checker
+                if isinstance(balances, dict):
+                    try:
+                        if selling_code in balances:
+                            asset_info = balances[selling_code]
+                            if isinstance(asset_info, dict) and "balance" in asset_info:
+                                selling_asset_balance = float(asset_info["balance"])
+                        elif selling_code == "XLM" and "XLM" in balances:
+                            xlm_info = balances["XLM"]
+                            if isinstance(xlm_info, dict) and "balance" in xlm_info:
+                                selling_asset_balance = float(xlm_info["balance"])
+                    except (KeyError, TypeError):
+                        # Handle case where balances is not a dictionary or key doesn't exist
+                        selling_asset_balance = 0
             
             required_amount = amount / 100000000  # Convert from stroops
             if selling_asset_balance < required_amount:
@@ -82,7 +116,7 @@ class TradingExecutor:
             builder.append_manage_buy_offer_op(
                 selling=selling_asset,
                 buying=buying_asset,
-                buy_amount=str(amount / 100000000),  # Convert from stroops
+                amount=str(amount / 100000000),  # Convert from stroops
                 price=str(buy_price / 100000000),    # Convert from stroops
             )
             

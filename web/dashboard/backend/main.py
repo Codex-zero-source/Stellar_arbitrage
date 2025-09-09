@@ -2,13 +2,17 @@ import asyncio
 import websockets
 import subprocess
 import os
-import json
 
-# Set of connected clients
-CLIENTS = set()
+import asyncio
+import websockets
+import subprocess
+import os
+import json
+from contract_client import ContractClient
+from trading_account import load_trading_account
 
 # Function to run the arbitrage engine and stream its output
-async def run_engine():
+async def run_engine(websocket):
     # Path to the real arbitrage engine script
     engine_script_path = os.path.join(os.path.dirname(__file__), 'arbitrage_engine.py')
 
@@ -23,28 +27,16 @@ async def run_engine():
     while process.stdout and not process.stdout.at_eof():
         line = await process.stdout.readline()
         if line:
-            message = line.decode().strip()
-            print(f"Sending: {message}")
-            # Broadcast to all connected clients
-            if CLIENTS:
-                await asyncio.gather(
-                    *[client.send(json.dumps({"type": "log", "content": message})) for client in CLIENTS], 
-                    return_exceptions=True
-                )
+            print(f"Sending: {line.decode().strip()}")
+            await websocket.send(line.decode().strip())
             await asyncio.sleep(0.1)  # Small delay to prevent overwhelming the connection
 
     # Stream stderr
     while process.stderr and not process.stderr.at_eof():
         line = await process.stderr.readline()
         if line:
-            error_message = line.decode().strip()
-            print(f"Error: {error_message}")
-            # Broadcast error to all connected clients
-            if CLIENTS:
-                await asyncio.gather(
-                    *[client.send(json.dumps({"type": "error", "content": error_message})) for client in CLIENTS], 
-                    return_exceptions=True
-                )
+            print(f"Error: {line.decode().strip()}")
+            await websocket.send(f"ERROR: {line.decode().strip()}")
             await asyncio.sleep(0.1)
 
     await process.wait()
@@ -52,41 +44,35 @@ async def run_engine():
 # WebSocket handler
 async def handler(websocket):
     print("Client connected")
-    CLIENTS.add(websocket)
     try:
-        await websocket.wait_closed()
-    finally:
-        CLIENTS.remove(websocket)
+        async for message in websocket:
+            try:
+                data = json.loads(message)
+                if data.get('command') == 'get_supported_assets':
+                    contract_client = ContractClient()
+                    trader_keypair = load_trading_account()
+                    if trader_keypair:
+                        assets = contract_client.get_supported_assets(trader_keypair)
+                        await websocket.send(json.dumps({"supported_assets": assets}))
+                    else:
+                        await websocket.send(json.dumps({"error": "No trading account available"}))
+                elif data.get('command') == 'start_engine':
+                    asyncio.create_task(run_engine(websocket))
+            except json.JSONDecodeError:
+                print(f"Received non-JSON message: {message}")
+
+    except websockets.exceptions.ConnectionClosed:
         print("Client disconnected")
+    finally:
+        print("Connection closed")
 
 # Start the WebSocket server
 async def main():
-    # Fixed port as per requirements
-    port = 8768
-    
-    # Start the WebSocket server
-    server = await websockets.serve(handler, "localhost", port)
-    print(f"WebSocket server started on ws://localhost:{port}")
-    
-    # Start the engine in a separate task
-    engine_task = asyncio.create_task(run_engine())
-    
-    # Wait for either the server to close or the engine task to complete
-    try:
-        await asyncio.gather(server.wait_closed(), engine_task)
-    except asyncio.CancelledError:
-        print("Server or engine task was cancelled")
-    finally:
-        # Cancel the engine task if it's still running
-        if not engine_task.done():
-            engine_task.cancel()
-            try:
-                await engine_task
-            except asyncio.CancelledError:
-                pass
+    # Get the port from environment variables, default to 8766
+    port = int(os.environ.get("PORT", 8766))
+    async with websockets.serve(handler, "localhost", port) as server:
+        print(f"WebSocket server started on ws://localhost:{port}")
+        await asyncio.Future()  # run forever
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("Server stopped by user")
+    asyncio.run(main())

@@ -3,12 +3,12 @@
 // This module handles the actual execution of buy and sell orders
 // on Stellar DEX with proper risk management
 
-use soroban_sdk::{contract, contractclient, contractimpl, contracttype, contracterror, Env, String, Address};
+use soroban_sdk::{contract, contractclient, contractimpl, contracttype, contracterror, Env, String, Address, Vec};
 
 #[derive(Clone)]
 #[contracttype]
 pub struct TradeOrder {
-    pub asset: String,
+    pub asset: Address,
     pub exchange: String,
     pub amount: i64,
     pub price_limit: i64, // Maximum buy price or minimum sell price
@@ -29,7 +29,7 @@ pub struct TradeResult {
 
 #[contracttype]
 pub struct BatchTradeParameters {
-    pub orders: soroban_sdk::Vec<TradeOrder>,
+    pub orders: Vec<TradeOrder>,
     pub max_slippage_bps: i64, // in basis points
     pub deadline: u64,
 }
@@ -54,9 +54,9 @@ pub trait Dex {
         trader: Address,
         amount_in: i64,
         amount_out_min: i64,
-        path: soroban_sdk::Vec<Address>,
+        path: Vec<Address>,
         deadline: u64,
-    ) -> soroban_sdk::Vec<i64>;
+    ) -> Vec<i64>;
 }
 
 #[contract]
@@ -81,18 +81,11 @@ impl TradingEngine {
             return Err(TradingError::DeadlineExceeded);
         }
 
-        // Transfer 'max_payment_amount' from the trader to this contract first.
-        // This contract holds the funds.
-
         let dex_client = DexClient::new(&env, &dex_contract);
-        let mut path = soroban_sdk::Vec::new(&env);
+        let mut path = Vec::new(&env);
         path.push_back(payment_asset);
         path.push_back(target_asset);
 
-        // Perform a forward swap, which is more common.
-        // The caller is responsible for calculating the correct input amount.
-        
-        // Let's assume the `max_payment_amount` is the exact amount to be swapped.
         let amounts = dex_client.swap_exact_tokens_for_tokens(
             &trader.clone(),
             &max_payment_amount,
@@ -135,11 +128,8 @@ impl TradingEngine {
             return Err(TradingError::DeadlineExceeded);
         }
 
-        // Assumes this contract holds the 'amount_to_sell' of the 'target_asset'.
-        // A transfer from the trader is required first.
-
         let dex_client = DexClient::new(&env, &dex_contract);
-        let mut path = soroban_sdk::Vec::new(&env);
+        let mut path = Vec::new(&env);
         path.push_back(target_asset);
         path.push_back(payment_asset);
 
@@ -169,28 +159,21 @@ impl TradingEngine {
     }
 
     /// Execute multiple trades atomically.
-    /// NOTE: The atomicity is guaranteed by Soroban. If any trade fails, the whole transaction reverts.
     pub fn batch_execute_trades(
         env: Env,
         params: BatchTradeParameters,
         trader: Address,
-    ) -> Result<soroban_sdk::Vec<TradeResult>, TradingError> {
+    ) -> Result<Vec<TradeResult>, TradingError> {
         trader.require_auth();
 
         if env.ledger().timestamp() > params.deadline {
             return Err(TradingError::DeadlineExceeded);
         }
 
-        let mut results = soroban_sdk::Vec::new(&env);
+        let mut results = Vec::new(&env);
 
         for order in params.orders.iter() {
-            // NOTE: This assumes a pre-defined mapping from a String-based exchange
-            // name to a contract Address. This is a placeholder for a real registry or lookup.
-            let dex_contract = Address::from_string(&String::from_str(&env, "CDEX...PLACEHOLDER"));
-
-            // NOTE: Asset strings also need to be resolved to Addresses. Placeholder logic.
-            let asset_a = Address::from_string(&String::from_str(&env, "CASA...PLACEHOLDER_A"));
-            let asset_b = Address::from_string(&String::from_str(&env, "CASB...PLACEHOLDER_B"));
+            let dex_contract = env.storage().persistent().get(&order.exchange).unwrap();
 
             let buy_order = String::from_str(&env, "buy");
             let sell_order = String::from_str(&env, "sell");
@@ -200,8 +183,8 @@ impl TradingEngine {
                     env.clone(),
                     trader.clone(),
                     dex_contract,
-                    asset_a, // payment_asset
-                    asset_b, // target_asset
+                    env.storage().persistent().get(&String::from_str(&env, "YUSDC")).unwrap(), // payment_asset
+                    order.asset, // target_asset
                     order.amount,
                     order.price_limit, // Interpreted as max_payment_amount
                     order.deadline,
@@ -211,8 +194,8 @@ impl TradingEngine {
                     env.clone(),
                     trader.clone(),
                     dex_contract,
-                    asset_a, // target_asset
-                    asset_b, // payment_asset
+                    order.asset, // target_asset
+                    env.storage().persistent().get(&String::from_str(&env, "YUSDC")).unwrap(), // payment_asset
                     order.amount,
                     order.price_limit, // Interpreted as min_payment_amount
                     order.deadline,
@@ -247,9 +230,9 @@ mod test_trading_engine {
             _trader: Address,
             amount_in: i64,
             _amount_out_min: i64,
-            _path: soroban_sdk::Vec<Address>,
+            _path: Vec<Address>,
             _deadline: u64,
-        ) -> soroban_sdk::Vec<i64> {
+        ) -> Vec<i64> {
             let mut amounts = Vec::new(&_env);
             amounts.push_back(amount_in);
             amounts.push_back(amount_in * 99 / 100); // Simulate 1% slippage
@@ -268,8 +251,11 @@ mod test_trading_engine {
 
         let trader = Address::random(&env);
         let dex_contract = env.register_contract(None, MockDex);
-        let payment_asset = Address::random(&env);
-        let target_asset = Address::random(&env);
+        let payment_asset = Address::from_string(&String::from_str(&env, "CABWYQLGOQ5Y3RIYUVYJZVA355YVX4SPAMN6ORDAVJZQBPPHLHRRLNMS"));
+        let target_asset = Address::from_string(&String::from_str(&env, "CDJF2JQINO7WRFXB2AAHLONFDPPI4M3W2UM5THGQQ7JMJDIEJYC4CMPG"));
+
+        env.storage().persistent().set(&String::from_str(&env, "stellar_dex"), &dex_contract);
+        env.storage().persistent().set(&String::from_str(&env, "YUSDC"), &payment_asset);
 
         (env, client, trader, dex_contract, payment_asset, target_asset)
     }
@@ -277,7 +263,6 @@ mod test_trading_engine {
     #[test]
     fn test_execute_buy_order() {
         let (env, client, trader, dex_contract, payment_asset, target_asset) = setup_test();
-        trader.require_auth();
 
         let amount_to_buy = 100_0000000; // 100 units
         let max_payment_amount = 101_0000000; // 101 units
@@ -302,7 +287,6 @@ mod test_trading_engine {
     #[test]
     fn test_execute_sell_order() {
         let (env, client, trader, dex_contract, payment_asset, target_asset) = setup_test();
-        trader.require_auth();
 
         let amount_to_sell = 100_0000000; // 100 units
         let min_payment_amount = 99_0000000; // 99 units
@@ -327,7 +311,6 @@ mod test_trading_engine {
     #[test]
     fn test_deadline_exceeded() {
         let (env, client, trader, dex_contract, payment_asset, target_asset) = setup_test();
-        trader.require_auth();
 
         let amount_to_buy = 100_0000000;
         let max_payment_amount = 101_0000000;

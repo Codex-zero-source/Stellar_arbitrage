@@ -9,15 +9,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useWebSocket } from './SocketContext';
 
 const TradeHistoryTable = () => {
-  // Sample trade data
-  const tradeData = [
-    { asset: 'BTC/USDT', profit: '+0.5%', timestamp: '2025-09-05 18:30:15' },
-    { asset: 'BTC/USDT', profit: '+0.2%', timestamp: '2025-09-05 18:25:41' },
-    { asset: 'ETH/USDT', profit: '+0.8%', timestamp: '2025-09-05 18:20:33' },
-    { asset: 'XRP/USDT', profit: '-0.1%', timestamp: '2025-09-05 18:15:27' },
-  ];
+  const { logs } = useWebSocket();
+
+  // TODO: Parse trade history from logs when the format is defined
+  const tradeData = [];
 
   return (
     <Card className="bg-card/60 border-neon-cyan shadow-[0_0_15px_rgba(0,246,255,0.4)] backdrop-blur-sm bg-gradient-to-br from-card to-card/80">
@@ -36,15 +34,21 @@ const TradeHistoryTable = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {tradeData.map((trade, index) => (
-              <TableRow key={index}>
-                <TableCell className="text-neon-lime">{trade.asset}</TableCell>
-                <TableCell className={trade.profit.startsWith('+') ? 'text-green-400' : 'text-red-500'}>
-                  {trade.profit}
-                </TableCell>
-                <TableCell>{trade.timestamp}</TableCell>
+            {tradeData.length > 0 ? (
+              tradeData.map((trade, index) => (
+                <TableRow key={index}>
+                  <TableCell className="text-neon-lime">{trade.asset}</TableCell>
+                  <TableCell className={trade.profit.startsWith('+') ? 'text-green-400' : 'text-red-500'}>
+                    {trade.profit}
+                  </TableCell>
+                  <TableCell>{trade.timestamp}</TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan="3" className="text-center">Trade history is not yet available.</TableCell>
               </TableRow>
-            ))}
+            )}
           </TableBody>
         </Table>
       </CardContent>

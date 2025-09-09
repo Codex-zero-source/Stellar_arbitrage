@@ -50,8 +50,6 @@ def create_trading_account() -> Keypair:
     print("Creating new trading account...")
     keypair = Keypair.random()
     print(f"New trading account public key: {keypair.public_key}")
-    print("Please manually fund this account using Friendbot or another method")
-    print(f"Friendbot URL: https://friendbot.stellar.org?addr={keypair.public_key}")
     
     save_trading_account(keypair)
     return keypair
@@ -67,9 +65,20 @@ def fund_account_with_friendbot(public_key: str) -> bool:
         bool: True if successful, False otherwise
     """
     try:
-        print(f"Please manually fund account {public_key} with Friendbot...")
-        print(f"Friendbot URL: https://friendbot.stellar.org?addr={public_key}")
-        print("Automatic funding has been disabled to prevent errors")
+        print(f"Funding account {public_key} with Friendbot...")
+        response = requests.get(f"https://friendbot.stellar.org?addr={public_key}")
+        response.raise_for_status()
+        
+        if response.status_code == 200:
+            print(f"SUCCESS! Account {public_key} funded.")
+            # Wait a moment for the funding to propagate
+            time.sleep(2)
+            return True
+        else:
+            print(f"ERROR! Could not fund account. Response: \n{response.text}")
+            return False
+    except requests.exceptions.RequestException as e:
+        print(f"Network error while funding account {public_key}: {e}")
         return False
     except Exception as e:
         print(f"Error funding account {public_key}: {e}")
@@ -77,7 +86,7 @@ def fund_account_with_friendbot(public_key: str) -> bool:
 
 def ensure_sufficient_xlm(public_key: str, min_balance: float = 20.0) -> bool:
     """
-    Check if the account has sufficient XLM balance. Does not automatically fund.
+    Ensure the account has sufficient XLM balance.
     
     Args:
         public_key (str): The public key of the account
@@ -92,9 +101,14 @@ def ensure_sufficient_xlm(public_key: str, min_balance: float = 20.0) -> bool:
         # Check current balance
         balance_info = check_account_balance(public_key, horizon_url)
         if "error" in balance_info:
-            print(f"Error checking balance for {public_key}: {balance_info['error']}")
-            print("Please manually ensure the account is properly funded")
-            return False
+            # If account not found, it needs to be funded first
+            if "not found" in balance_info['error'].lower():
+                print(f"Account {public_key} not found on network, funding it...")
+                return fund_account_with_friendbot(public_key)
+            else:
+                print(f"Error checking balance for {public_key}: {balance_info['error']}")
+                # Try to fund it anyway
+                return fund_account_with_friendbot(public_key)
             
         current_balance = balance_info['xlm_balance']
         print(f"Account {public_key} XLM balance: {current_balance}")
@@ -102,15 +116,14 @@ def ensure_sufficient_xlm(public_key: str, min_balance: float = 20.0) -> bool:
         if current_balance >= min_balance:
             print(f"Account has sufficient XLM balance ({current_balance} >= {min_balance})")
             return True
-        else:
-            print(f"Account balance ({current_balance}) is below minimum ({min_balance})")
-            print("Please manually fund the account using Friendbot or another method")
-            print(f"Friendbot URL: https://friendbot.stellar.org?addr={public_key}")
-            return False
+            
+        # If balance is too low, try to fund it
+        print(f"Account balance ({current_balance}) is below minimum ({min_balance}), funding...")
+        return fund_account_with_friendbot(public_key)
     except Exception as e:
-        print(f"Error checking XLM for account {public_key}: {e}")
-        print("Please manually ensure the account is properly funded")
-        return False
+        print(f"Error checking/funding XLM for account {public_key}: {e}")
+        # Try to fund it anyway
+        return fund_account_with_friendbot(public_key)
 
 def establish_trustlines(account_keypair: Keypair, assets: list) -> bool:
     """
@@ -226,10 +239,10 @@ def setup_trading_account(accounts: list = None) -> Keypair:
     else:
         print(f"Loaded existing trading account: {trading_account.public_key}")
     
-    # Check sufficient XLM (no automatic funding)
+    # Ensure sufficient XLM
     if not ensure_sufficient_xlm(trading_account.public_key, 20.0):
-        print("Account does not have sufficient XLM balance. Please fund manually.")
-        return trading_account
+        print("Failed to ensure sufficient XLM balance")
+        return None
     
     # Define assets
     if accounts and len(accounts) > 0:

@@ -42,96 +42,18 @@ def main():
     
     print(f"Trading account: {trading_account.public_key}")
     
-    # Load existing accounts to get the issuer
+    # Load existing accounts (we'll include the trading account in the list for trustline establishment)
     accounts = load_existing_accounts()
-    if not accounts:
-        print("No existing accounts found. Cannot establish trustlines without issuer.")
-        return
     
-    issuer_keypair = accounts[0]
-    print(f"Using issuer account: {issuer_keypair.public_key}")
+    # Add trading account to the list of accounts for trustline establishment
+    accounts.append(trading_account)
     
-    # Define assets
-    assets = [
-        Asset("BTC", issuer_keypair.public_key),
-        Asset("USDC", issuer_keypair.public_key),
-    ]
-    
-    # For this specific task, we'll just establish trustlines and distribute assets
-    # to the trading account, not all accounts
-    
-    # We'll reuse some functions from assets.py but modify them for our specific needs
-    
-    # Since we're only setting up one account, we can simplify the process
-    from stellar_sdk import Server, TransactionBuilder
-    import time
-    
-    horizon_url = os.getenv('STELLAR_HORIZON_URL', 'https://horizon-testnet.stellar.org')
-    network_passphrase = os.getenv('STELLAR_NETWORK_PASSPHRASE', 'Test SDF Network ; September 2015')
-    
-    server = Server(horizon_url)
-    
-    # Establish trustlines for trading account
-    print("Establishing trustlines for trading account...")
-    try:
-        source_account = server.load_account(trading_account.public_key)
-    except Exception as e:
-        print(f"Error loading trading account: {e}")
-        return
-    
-    for asset in assets:
-        print(f"Establishing trustline for {asset.code}:{asset.issuer}...")
-        try:
-            builder = TransactionBuilder(
-                source_account=source_account,
-                network_passphrase=network_passphrase,
-                base_fee=100,
-            ).set_timeout(30)
-            
-            builder.append_change_trust_op(asset=asset, limit="10000000")
-            tx = builder.build()
-            tx.sign(trading_account)
-            
-            response = server.submit_transaction(tx)
-            print(f"Trustline established for {asset.code}: {response['hash']}")
-            time.sleep(2)  # Wait between transactions
-        except Exception as e:
-            print(f"Error establishing trustline for {asset.code}: {e}")
-            if "op_already_exists" not in str(e).lower():
-                continue
-    
-    # Distribute assets from issuer to trading account
-    print("Distributing assets to trading account...")
-    try:
-        issuer_account = server.load_account(issuer_keypair.public_key)
-    except Exception as e:
-        print(f"Error loading issuer account: {e}")
-        return
-    
-    for asset in assets:
-        print(f"Distributing {asset.code} to trading account...")
-        try:
-            builder = TransactionBuilder(
-                source_account=issuer_account,
-                network_passphrase=network_passphrase,
-                base_fee=100,
-            ).set_timeout(30)
-
-            builder.append_payment_op(
-                destination=trading_account.public_key,
-                asset=asset,
-                amount="10000"  # Distribute 10,000 units of each asset
-            )
-            tx = builder.build()
-            tx.sign(issuer_keypair)
-
-            response = server.submit_transaction(tx)
-            print(f"Asset {asset.code} distributed: {response['hash']}")
-            time.sleep(2)  # Wait between transactions
-        except Exception as e:
-            print(f"Error distributing asset {asset.code}: {e}")
+    # Use the updated create_assets_and_trustlines function which now handles real assets
+    # This function establishes trustlines for all real assets for all accounts
+    real_assets = create_assets_and_trustlines(accounts)
     
     print("Asset setup for trading account complete!")
+    print("Note: Real assets are already issued on the network, no distribution needed.")
 
 if __name__ == "__main__":
     main()

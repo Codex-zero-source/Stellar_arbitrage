@@ -6,6 +6,7 @@ from stellar_sdk.soroban_server import SorobanServer
 from stellar_sdk.transaction_builder import TransactionBuilder
 from stellar_sdk.xdr import SCVal, SCVec, SCValType, SCString, Int64
 from stellar_sdk.address import Address
+from stellar_sdk.scval import scval_to_native
 from error_handler import decode_stellar_error, check_account_balance, ensure_sufficient_fee
 
 # Load environment variables
@@ -27,6 +28,46 @@ class ContractClient:
         self.horizon_server = Server(self.horizon_url)
         print(f"Using RPC URLs: {self.rpc_urls}")
         print(f"Using Horizon URL: {self.horizon_url}")
+
+    def get_supported_assets(self, trader_keypair: Keypair):
+        """
+        Calls the get_supported_assets function on the ArbitrageDetector contract.
+        """
+        if not self.arbitrage_contract_id:
+            print("Error: ARBITRAGE_DETECTOR_CONTRACT_ID not set in environment variables")
+            return []
+
+        try:
+            source_account = self.horizon_server.load_account(trader_keypair.public_key)
+
+            tx = (
+                TransactionBuilder(source_account, self.network_passphrase, base_fee=100)
+                .set_timeout(300)
+                .append_invoke_contract_function_op(
+                    contract_id=self.arbitrage_contract_id,
+                    function_name="get_supported_assets",
+                    parameters=[],
+                )
+                .build()
+            )
+
+            sim_response = self.server.simulate_transaction(tx)
+
+            if sim_response.results:
+                result_xdr = sim_response.results[0].xdr
+                scval = SCVal.from_xdr(result_xdr)
+                native_val = scval.to_native()
+                
+                return native_val
+            else:
+                print("Simulation successful but no results returned")
+                return []
+
+        except Exception as e:
+            print(f"Error getting supported assets: {e}")
+            return []
+
+
 
     def _create_soroban_server(self):
         """Create SorobanServer with fallback URLs."""

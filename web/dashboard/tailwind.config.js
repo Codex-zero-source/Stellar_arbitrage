@@ -1,4 +1,3 @@
-/** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
     "./index.html",
@@ -7,36 +6,36 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        'background-dark': 'rgb(var(--background-dark) / <alpha-value>)',
-        'neon-cyan': 'rgb(var(--neon-cyan) / <alpha-value>)',
-        'neon-magenta': 'rgb(var(--neon-magenta) / <alpha-value>)',
-        'neon-lime': 'rgb(var(--neon-lime) / <alpha-value>)',
+        'background-dark': 'rgb(var(--background-dark))',
+        'neon-cyan': 'rgb(var(--neon-cyan))',
+        'neon-magenta': 'rgb(var(--neon-magenta))',
+        'neon-lime': 'rgb(var(--neon-lime))',
         
-        border: 'rgb(var(--border) / <alpha-value>)',
-        input: 'rgb(var(--input) / <alpha-value>)',
-        ring: 'rgb(var(--ring) / <alpha-value>)',
-        background: 'rgb(var(--background) / <alpha-value>)',
-        foreground: 'rgb(var(--foreground) / <alpha-value>)',
+        border: 'rgb(var(--border))',
+        input: 'rgb(var(--input))',
+        ring: 'rgb(var(--ring))',
+        background: 'rgb(var(--background))',
+        foreground: 'rgb(var(--foreground))',
         primary: {
-          DEFAULT: 'rgb(var(--primary) / <alpha-value>)',
-          foreground: 'rgb(var(--primary-foreground) / <alpha-value>)',
+          DEFAULT: 'rgb(var(--primary))',
+          foreground: 'rgb(var(--primary-foreground))',
         },
         secondary: {
-          DEFAULT: 'rgb(var(--secondary) / <alpha-value>)',
-          foreground: 'rgb(var(--secondary-foreground) / <alpha-value>)',
+          DEFAULT: 'rgb(var(--secondary))',
+          foreground: 'rgb(var(--secondary-foreground))',
         },
         destructive: {
-          DEFAULT: 'rgb(var(--destructive) / <alpha-value>)',
-          foreground: 'rgb(var(--destructive-foreground) / <alpha-value>)',
+          DEFAULT: 'rgb(var(--destructive))',
+          foreground: 'rgb(var(--destructive-foreground))',
         },
         card: {
-          DEFAULT: 'rgb(var(--card) / <alpha-value>)',
-          foreground: 'rgb(var(--card-foreground) / <alpha-value>)',
+          DEFAULT: 'rgb(var(--card))',
+          foreground: 'rgb(var(--card-foreground))',
         },
       },
       borderColor: theme => ({
         ...theme('colors'),
-        DEFAULT: 'rgb(var(--border) / <alpha-value>)',
+        DEFAULT: 'rgb(var(--border))',
       }),
       boxShadow: {
         'glow-cyan': '0 0 15px rgba(0, 246, 255, 0.4)',
@@ -50,7 +49,5 @@ module.exports = {
       },
     },
   },
-  plugins: [
-    require("tailwindcss-animate"),
-  ],
+  plugins: [],
 };

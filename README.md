@@ -40,11 +40,11 @@ STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
 STELLAR_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
 STELLAR_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
 
-ARBITRAGE_DETECTOR_CONTRACT_ID=CBQHRSQGINQL44XCAIMVEEJRNO7NUXEGRPF2I2E7SK2XBMFXY6XVOT4J
-REFLECTOR_ORACLE_CONTRACT_ID=CDHXGW5XPQN34WP3GQZ3QA76ECI7RP3GE4HRASYPTRUJXYDWOTLVMAPK
+ARBITRAGE_DETECTOR_CONTRACT_ID=CAIEZ2IDLR2NWZVA3AYTJ5OLJC2A53GSPBMB43FQSESVJRWM4CFLZ45Q
+REFLECTOR_ORACLE_CONTRACT_ID=CBIW2BTCOMOEV5WQC2JRWVH4TAXCZNAUIUOXYVAYP4YDW4D3AEEQPNTC
 TRADING_ENGINE_CONTRACT_ID=CC52KVUOD5YWXHKO55TO3FQ5QDY7ELWM7FHZ4JVE7CQWXR7KCTEU7WUY
 
-FLASH_LOAN_PROVIDER=CB75LG2KULDDIFL2BBZHIBXDPXELJJFWRRHKJZ2H5JF7C4DT6GHW4PJQ
+FLASH_LOAN_PROVIDER=CBXLI4HIOKWWOUT5OHCCQYDSCLOVGBWXCGFVI44SC3BJA6QHFJFIKM7R
 ```
 
 ## Real Asset Integration
@@ -129,25 +129,6 @@ The platform now uses genuine Reflector-tracked assets instead of custom simulat
 4. **Cross-Chain Flash Loan Engine**
    - Handles cross-chain flash loan arbitrage with real asset trading
    - Coordinates borrowing and trading across chains with actual market data
-
-## Documentation
-
-Detailed documentation is available in the [docs](docs) directory. For the recent upgrade to real Reflector-tracked assets, see the key documentation below:
-
-### Upgrade Documentation
-- [Upgrade Analysis](docs/upgrade_analysis.md) - Analysis of the migration from custom assets to real Reflector-tracked tokens
-- [Technical Requirements](docs/technical_requirements.md) - Detailed technical specifications for the upgrade
-- [Success Criteria](docs/success_criteria.md) - Functional and performance requirements for the upgraded system
-- [Implementation Guide](docs/implementation_guide.md) - Step-by-step instructions for implementing the upgrade
-- [API Documentation](docs/api_documentation.md) - Detailed API documentation for all enhanced features
-- [Asset Migration Guide](docs/asset_migration_guide.md) - Guide for migrating from custom to real assets
-- [Deployment Guide](docs/deployment_guide.md) - Instructions for deploying the upgraded platform
-- [Test Plan](docs/test_plan.md) - Comprehensive testing strategy and execution plan
-- [Upgrade Summary](docs/upgrade_summary.md) - Complete summary of all changes implemented
-- [Status Report](docs/status_report.md) - Final status report of the upgrade project
-
-### Complete Documentation Index
-See [docs/index.md](docs/index.md) for a complete list of all documentation files organized by category.
 
 ## Troubleshooting
 

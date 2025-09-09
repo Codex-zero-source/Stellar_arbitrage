@@ -6,46 +6,46 @@ export const useWebSocket = () => useContext(WebSocketContext);
 
 export const WebSocketProvider = ({ children }) => {
   const [logs, setLogs] = useState([]);
+  const [supportedAssets, setSupportedAssets] = useState([]);
 
   useEffect(() => {
-    // Connect to the actual WebSocket server on port 8768
-    const ws = new WebSocket('ws://localhost:8768');
+    // Connect to the actual WebSocket server
+    const ws = new WebSocket('ws://localhost:8766');
     
     ws.onopen = () => {
       console.log('Connected to arbitrage engine WebSocket');
-      setLogs(prevLogs => [...prevLogs, {type: 'info', content: 'Status: Connected to arbitrage engine'}]);
+      setLogs(prevLogs => [...prevLogs, 'Status: Connected to arbitrage engine']);
+      ws.send(JSON.stringify({ command: 'get_supported_assets' }));
+      ws.send(JSON.stringify({ command: 'start_engine' }));
     };
     
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type && data.content) {
-          // New structured message format
-          setLogs(prevLogs => [...prevLogs, {type: data.type, content: data.content}]);
-        } else if (data.log) {
-          // Old format for backward compatibility
-          setLogs(prevLogs => [...prevLogs, {type: 'log', content: data.log}]);
+        if (data.log) {
+          setLogs(prevLogs => [...prevLogs, data.log]);
         } else if (data.error) {
-          // Old format for backward compatibility
-          setLogs(prevLogs => [...prevLogs, {type: 'error', content: data.error}]);
+          setLogs(prevLogs => [...prevLogs, `Error: ${data.error}`]);
+        } else if (data.supported_assets) {
+          setSupportedAssets(data.supported_assets);
         } else {
           // Handle any other message format
-          setLogs(prevLogs => [...prevLogs, {type: 'log', content: event.data}]);
+          setLogs(prevLogs => [...prevLogs, event.data]);
         }
       } catch (e) {
         // If it's not JSON, treat it as a plain log message
-        setLogs(prevLogs => [...prevLogs, {type: 'log', content: event.data}]);
+        setLogs(prevLogs => [...prevLogs, event.data]);
       }
     };
     
     ws.onclose = () => {
       console.log('Disconnected from arbitrage engine WebSocket');
-      setLogs(prevLogs => [...prevLogs, {type: 'info', content: 'Status: Disconnected from arbitrage engine'}]);
+      setLogs(prevLogs => [...prevLogs, 'Status: Disconnected from arbitrage engine']);
     };
     
     ws.onerror = (error) => {
       console.error('WebSocket error:', error);
-      setLogs(prevLogs => [...prevLogs, {type: 'error', content: 'Error: WebSocket connection failed'}]);
+      setLogs(prevLogs => [...prevLogs, `Error: WebSocket connection failed`]);
     };
 
     // Clean up the WebSocket connection on component unmount
@@ -56,6 +56,7 @@ export const WebSocketProvider = ({ children }) => {
 
   const value = {
     logs,
+    supportedAssets,
   };
 
   return (

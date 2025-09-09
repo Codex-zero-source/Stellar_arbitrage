@@ -33,7 +33,6 @@ dependencies = [
 name = "arbitrage_detector"
 version = "0.1.0"
 dependencies = [
- "reflector_oracle_client",
  "soroban-sdk",
 ]
 

@@ -4,7 +4,7 @@ import random
 from dotenv import load_dotenv
 from contract_client import ContractClient
 from error_handler import check_account_balance, ensure_sufficient_fee
-from trading_account import load_trading_account
+from trading_account import load_trading_account, ensure_sufficient_xlm
 from stellar_sdk import Asset
 
 # Load environment variables
@@ -31,31 +31,26 @@ def run_arbitrage_engine(accounts: list, assets=None):
         yield "No trading account available. Cannot proceed."
         return
     
-    # Check account status
+    # Check account status and ensure it's properly funded
     yield f"Using trader account: {trader_keypair.public_key}"
     
-    # Check account balance
+    # Ensure the trading account has sufficient XLM
+    if not ensure_sufficient_xlm(trader_keypair.public_key, 10.0):  # Ensure at least 10 XLM
+        yield "Failed to ensure sufficient XLM for trading account"
+        return
+    
+    # Check account balance after ensuring funding
     balance_info = check_account_balance(trader_keypair.public_key)
     if "error" not in balance_info:
         yield f"Account XLM balance: {balance_info['xlm_balance']}"
     else:
         yield f"Could not check account balance: {balance_info['error']}"
-        # If we can't check the balance, we'll proceed but warn the user
-        yield "WARNING: Proceeding without verified account balance"
     
     # Define assets to scan for arbitrage opportunities
-    # If assets are not provided, use default BTC/USDC pair
+    # If assets are not provided, use real Reflector-tracked assets
     if assets is None:
-        # Create Asset objects for BTC and USDC
-        if accounts and len(accounts) > 0:
-            issuer_keypair = accounts[0]
-            asset_codes = [
-                Asset("BTC", issuer_keypair.public_key),
-                Asset("USDC", issuer_keypair.public_key)
-            ]
-        else:
-            # Fallback to string codes if no issuer available
-            asset_codes = ["BTC", "USDC"]
+        # Use real asset codes
+        asset_codes = contract_client.get_supported_assets(trader_keypair)
     else:
         # Extract asset codes from the Asset objects or use as-is
         if isinstance(assets[0], Asset):
@@ -74,19 +69,19 @@ def run_arbitrage_engine(accounts: list, assets=None):
             balance_info = check_account_balance(trader_keypair.public_key)
             if "error" not in balance_info:
                 yield f"Current XLM balance: {balance_info['xlm_balance']}"
-                if balance_info['xlm_balance'] < 1.0:  # Less than 1 XLM
-                    yield "Warning: Low XLM balance. Please ensure account is properly funded."
-            else:
-                yield f"Could not check account balance: {balance_info['error']}"
+                if float(balance_info['xlm_balance']) < 1.0:  # Less than 1 XLM
+                    yield "Warning: Low XLM balance. Consider funding the account."
+                    # Try to ensure sufficient funds
+                    ensure_sufficient_xlm(trader_keypair.public_key, 5.0)
             
             # Scan for arbitrage opportunities with the specified assets and minimum profit
             # Convert Asset objects to string codes if needed
             asset_strings = []
-            if isinstance(asset_codes[0], Asset):
-                asset_strings = [asset.code for asset in asset_codes]
-            else:
-                asset_strings = asset_codes
-                
+            for asset in asset_codes:
+                if hasattr(asset, "code") and not isinstance(asset, str):
+                    asset_strings.append(asset.code)
+                else:
+                    asset_strings.append(asset)
             yield f"Scanning for arbitrage opportunities with assets: {asset_strings}"
             result = contract_client.scan_arbitrage_opportunities(trader_keypair, asset_strings, min_profit=1000000)
             
@@ -105,6 +100,8 @@ def run_arbitrage_engine(accounts: list, assets=None):
                     yield f"Too many consecutive failures ({consecutive_failures}). Pausing longer..."
                     time.sleep(scan_interval * 3)  # Wait 3x longer
                     consecutive_failures = 0  # Reset counter
+                    # Also try to ensure account is properly funded
+                    ensure_sufficient_xlm(trader_keypair.public_key, 10.0)
 
         except Exception as e:
             yield f"Arbitrage engine: An error occurred: {e}"
@@ -118,7 +115,13 @@ def run_arbitrage_engine(accounts: list, assets=None):
                 yield f"Too many consecutive failures ({consecutive_failures}). Pausing longer..."
                 time.sleep(scan_interval * 3)  # Wait 3x longer
                 consecutive_failures = 0  # Reset counter
+                # Also try to ensure account is properly funded
+                ensure_sufficient_xlm(trader_keypair.public_key, 10.0)
 
         # Respect the scan interval
         yield f"Waiting {scan_interval} seconds before next scan..."
         time.sleep(scan_interval)
+
+if __name__ == "__main__":
+    for message in run_arbitrage_engine(accounts=[]):
+        print(message)

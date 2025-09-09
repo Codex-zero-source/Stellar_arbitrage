@@ -1,28 +1,42 @@
 import os
 from dotenv import load_dotenv
 from stellar_sdk import Asset, Server, TransactionBuilder, Network
+from contract_client import ContractClient
+from trading_account import load_trading_account
 
 # Load environment variables
 load_dotenv()
 
 def create_assets_and_trustlines(accounts: list) -> list:
     """
-    Creates custom assets, establishes trustlines for all accounts, and distributes the assets.
+    Establishes trustlines for real assets for all accounts.
+    Note: Real assets are already issued, we just need trustlines.
     """
     horizon_url = os.getenv('STELLAR_HORIZON_URL', 'https://horizon-testnet.stellar.org')
     network_passphrase = os.getenv('STELLAR_NETWORK_PASSPHRASE', 'Test SDF Network ; September 2015')
     
-    issuer_keypair = accounts[0]
-    assets = [
-        Asset("BTC", issuer_keypair.public_key),
-        Asset("USDC", issuer_keypair.public_key),
-    ]
+    contract_client = ContractClient()
+    if accounts:
+        trader_keypair = accounts[0]
+    else:
+        trader_keypair = load_trading_account()
+
+    if not trader_keypair:
+        print("No trading account available to fetch assets.")
+        return []
+
+    supported_assets = contract_client.get_supported_assets(trader_keypair)
+    if not supported_assets:
+        print("Could not retrieve supported assets from the smart contract.")
+        return []
+
+    real_assets = [Asset(code=asset['code'], issuer=asset['issuer']) for asset in supported_assets]
 
     server = Server(horizon_url)
     
-    # Establish trustlines and distribute assets
-    for asset in assets:
-        for account_keypair in accounts[1:]:
+    # Establish trustlines for real assets
+    for asset in real_assets:
+        for account_keypair in accounts:
             print(f"Processing asset {asset.code} for {account_keypair.public_key}")
             
             try:
@@ -51,26 +65,4 @@ def create_assets_and_trustlines(accounts: list) -> list:
                 if "op_already_exists" not in str(e):
                     continue
 
-            try:
-                # Build transaction to distribute assets from issuer
-                issuer_account = server.load_account(issuer_keypair.public_key)
-                builder = TransactionBuilder(
-                    source_account=issuer_account,
-                    network_passphrase=network_passphrase,
-                    base_fee=100,
-                ).set_timeout(30)
-
-                builder.append_payment_op(
-                    destination=account_keypair.public_key,
-                    asset=asset,
-                    amount="1000" # Distribute more of each asset
-                )
-                tx = builder.build()
-                tx.sign(issuer_keypair)
-
-                response = server.submit_transaction(tx)
-                print(f"Payment response: {response}")
-            except Exception as e:
-                print(f"Error distributing asset: {e}")
-
-    return assets
+    return real_assets

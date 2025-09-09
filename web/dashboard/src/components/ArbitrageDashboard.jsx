@@ -2,13 +2,16 @@ import React from 'react';
 import ArbitrageLogViewer from './ArbitrageLogViewer';
 import KpiCard from './KpiCard';
 import TradeHistoryTable from './TradeHistoryTable';
+import { useWebSocket } from './SocketContext';
 
 const ArbitrageDashboard = () => {
+  const { supportedAssets } = useWebSocket();
+
   const kpiData = [
     { title: 'NET PROFIT', value: '$ 100.00' },
     { title: 'TOTAL TRADES', value: '150' },
     { title: 'WIN RATE', value: '75%' },
-    { title: 'ACTIVE PAIRS', value: '5' },
+    { title: 'ACTIVE PAIRS', value: supportedAssets.length },
   ];
 
   return (
