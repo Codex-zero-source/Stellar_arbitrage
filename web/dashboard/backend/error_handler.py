@@ -64,28 +64,34 @@ def check_account_balance(account_id, server_url="https://horizon-testnet.stella
     """
     try:
         server = Server(server_url)
-        account = server.load_account(account_id)
+        # Use the accounts endpoint to get account data
+        account_data = server.accounts().account_id(account_id).call()
         
         balances = {}
         xlm_balance = 0.0
         
-        # Properly access the balances from the Account object
-        for balance in account.balances:
-            if balance.asset_type == "native":
-                xlm_balance = float(balance.balance)
+        # Process balances from the account data
+        for balance_entry in account_data.get('balances', []):
+            if balance_entry.get('asset_type') == "native":
+                xlm_balance = float(balance_entry.get('balance', 0))
                 balances["XLM"] = {
                     "balance": xlm_balance,
                 }
             else:
-                balances[balance.asset_code] = {
-                    "balance": float(balance.balance),
+                asset_code = balance_entry.get('asset_code', 'Unknown')
+                balances[asset_code] = {
+                    "balance": float(balance_entry.get('balance', 0)),
+                    "asset_type": balance_entry.get('asset_type')
                 }
+                # Include issuer if available
+                if 'asset_issuer' in balance_entry:
+                    balances[asset_code]["issuer"] = balance_entry['asset_issuer']
         
         return {
             "account_id": account_id,
             "xlm_balance": xlm_balance,
             "balances": balances,
-            "sequence": account.sequence
+            "sequence": int(account_data.get('sequence', 0))
         }
     except NotFoundError:
         return {"error": f"Account {account_id} not found on network"}

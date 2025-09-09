@@ -274,4 +274,6 @@ def setup_trading_account(accounts: list = None) -> Keypair:
 
 if __name__ == "__main__":
     # This can be run standalone to create and setup a trading account
-    setup_trading_account()
+    from accounts import load_keypairs
+    accounts = load_keypairs()
+    setup_trading_account(accounts)
