@@ -1,23 +1,71 @@
-# Stellar Arbitrage Simulation Backend
+# Stellar Arbitrage Trading Platform - Backend
 
-This backend service simulates a trading environment for the Stellar arbitrage detection system. It creates accounts, assets, and trading activity to generate arbitrage opportunities for the smart contracts to detect.
+This backend service implements a real-time arbitrage detection and execution system for the Stellar blockchain using Soroban smart contracts. It interfaces with deployed smart contracts to detect and execute profitable arbitrage opportunities across decentralized exchanges.
 
-## Components
+## Current Architecture
 
-1. **Account Management**: Creates and funds Stellar accounts using Friendbot
-2. **Asset Creation**: Creates custom assets and establishes trustlines
-3. **Liquidity Pools**: Sets up liquidity pools for trading
-4. **Order Management**: Creates initial market orders
-5. **Simulation Engine**: Continuously generates trading activity
-6. **Arbitrage Engine**: Scans for and executes arbitrage opportunities
-7. **Contract Client**: Interfaces with Soroban smart contracts
-8. **Reflector Client**: Interfaces with the Reflector oracle service
+The backend follows a modular architecture focused on real contract interactions:
+
+```
+main.py                 # WebSocket server entry point and orchestration
+├── contract_client.py  # Primary interface to Stellar smart contracts
+├── trading_account.py  # Trading account management and funding
+├── arbitrage_engine.py # Core arbitrage detection logic
+├── error_handler.py    # Error handling and account balance management
+├── accounts.py         # Account creation and management
+├── assets.py           # Asset trustline management
+└── reflector_client.py # Reflector oracle interface
+```
+
+## Key Components
+
+1. **WebSocket Server** (`main.py`): 
+   - Runs on port 8768
+   - Handles real-time communication with frontend dashboard
+   - Provides endpoints for supported assets and arbitrage engine control
+
+2. **Contract Client** (`contract_client.py`):
+   - Direct interface to Stellar smart contracts
+   - Implements all required contract functions:
+     - `set_reflector_contract_id`
+     - `is_asset_supported`
+     - `get_supported_assets`
+     - `scan_opportunities` (as `scan_arbitrage_opportunities`)
+
+3. **Trading Account Management** (`trading_account.py`):
+   - Creates and manages dedicated trading accounts
+   - Ensures accounts have sufficient XLM for transactions
+   - Handles account funding through Friendbot
+
+4. **Arbitrage Engine** (`arbitrage_engine.py`):
+   - Continuously scans for arbitrage opportunities
+   - Uses contract client to interact with smart contracts
+   - Streams real-time results through WebSocket
+
+5. **Error Handler** (`error_handler.py`):
+   - Manages account balance checking
+   - Decodes Stellar transaction errors
+   - Ensures sufficient fees for transactions
+
+## Smart Contract Integration
+
+The backend integrates with the following deployed smart contracts:
+
+- **Arbitrage Detector Contract**: `CAIEZ2IDLR2NWZVA3AYTJ5OLJC2A53GSPBMB43FQSESVJRWM4CFLZ45Q`
+- **Reflector Oracle Contract**: `CBIW2BTCOMOEV5WQC2JRWVH4TAXCZNAUIUOXYVAYP4YDW4D3AEEQPNTC`
+
+## WebSocket API
+
+The backend exposes a WebSocket API with the following commands:
+
+- `{"command": "get_supported_assets"}` - Returns list of assets supported by the arbitrage contract
+- `{"command": "start_engine"}` - Starts the arbitrage scanning engine
 
 ## Setup Instructions
 
 ### Prerequisites
 
-- Python 3.7+
+- Python 3.8+
 - Stellar SDK for Python
 - Access to Stellar Testnet
 
@@ -40,6 +88,8 @@ This backend service simulates a trading environment for the Stellar arbitrage d
 python main.py
 ```
 
+The WebSocket server will start on `ws://localhost:8768`.
+
 ## Configuration
 
 The service is configured through environment variables in the `.env` file:
@@ -50,54 +100,35 @@ The service is configured through environment variables in the `.env` file:
 - `STELLAR_NETWORK_PASSPHRASE`: Network passphrase
 - `ARBITRAGE_DETECTOR_CONTRACT_ID`: Deployed arbitrage detector contract ID
 - `REFLECTOR_ORACLE_CONTRACT_ID`: Deployed Reflector oracle contract ID
-- `NUM_ACCOUNTS`: Number of accounts to create
-- `SIMULATION_INTERVAL`: Seconds between simulation iterations
-- `ARBITRAGE_SCAN_INTERVAL`: Seconds between arbitrage scans
+- `NUM_ACCOUNTS`: Number of accounts to create (default: 10)
+- `ARBITRAGE_SCAN_INTERVAL`: Seconds between arbitrage scans (default: 15)
 
 ## Testing
 
-Run the integration tests:
+Run individual component tests:
 
 ```bash
-python test_integration.py
+# Test contract interactions
+python test_contracts.py
+
+# Test WebSocket connection
+python test_websocket.py
+
+# Check account balance
+python check_balance.py
 ```
 
-## Architecture
+## Current Status
 
-The backend follows a modular architecture:
+### Working Components
+- ✅ WebSocket server starts and accepts connections
+- ✅ Contract client connects to Soroban RPC server
+- ✅ Trading account management loads and checks balances
+- ✅ `is_asset_supported` function works correctly
 
-```
-main.py                 # Entry point and orchestration
-├── accounts.py         # Account management
-├── assets.py           # Asset creation and trustlines
-├── liquidity_pools.py  # Liquidity pool setup
-├── orders.py           # Initial order creation
-├── simulation.py       # Continuous trading simulation
-├── arbitrage_engine.py # Arbitrage detection and execution
-├── contract_client.py  # Smart contract interface
-├── reflector_client.py # Reflector oracle interface
-└── trading_executor.py # Trade execution logic
-```
-
-## Data Flow
-
-1. Accounts and assets are created and funded
-2. Initial market orders are placed
-3. Simulation engine continuously creates new orders
-4. Arbitrage engine periodically scans for opportunities
-5. Opportunities are sent to smart contracts for validation
-6. Valid opportunities trigger trade execution
-7. Reflector oracle provides price data to contracts
-
-## Extending the System
-
-To add new features:
-
-1. Create new modules for specific functionality
-2. Integrate with existing components through well-defined interfaces
-3. Update the main orchestration logic as needed
-4. Add configuration options to `.env`
-5. Update documentation
+### In Progress
+- ⚠️ `get_supported_assets` - Not returning results (may need contract configuration)
+- ⚠️ `scan_arbitrage_opportunities` - Transactions submitted but not found (network delay or processing issue)
 
 ## Troubleshooting
 
@@ -105,5 +136,11 @@ Common issues and solutions:
 
 - **Account funding failures**: Check Friendbot availability and network connectivity
 - **Contract interaction errors**: Verify contract IDs and network configuration
-- **Permission errors**: Ensure accounts have sufficient funds for transactions
-- **Rate limiting**: Reduce simulation frequency if hitting rate limits
+- **WebSocket connection issues**: Ensure the server is running on the correct port
+- **Insufficient XLM**: Accounts must have sufficient XLM for transaction fees
+- **RPC connection issues**: Try alternative RPC URLs in the `.env` file:
+  ```
+  STELLAR_SOROBAN_RPC_URL=https://rpc.testnet.stellar.org:443/soroban/rpc
+  # or
+  STELLAR_SOROBAN_RPC_URL=https://soroban-rpc.testnet.stellar.org
+  ```
