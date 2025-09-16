@@ -7,6 +7,7 @@ import sys
 import traceback
 from contract_client import ContractClient
 from trading_account import load_trading_account
+from data_processor import data_processor
 
 # Add the current directory to the Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -56,6 +57,107 @@ async def handler(websocket):
                 elif data.get('command') == 'start_engine':
                     # Run the engine in a separate task to avoid blocking
                     asyncio.create_task(run_engine(websocket))
+                elif data.get('command') == 'check_wallet_balance':
+                    public_key = data.get('public_key')
+                    if public_key:
+                        try:
+                            from error_handler import check_account_balance
+                            balance_info = check_account_balance(public_key)
+                            await websocket.send(json.dumps({"wallet_balance": balance_info}))
+                        except Exception as e:
+                            await websocket.send(json.dumps({"error": f"Failed to check wallet balance: {str(e)}"}))
+                    else:
+                        await websocket.send(json.dumps({"error": "Public key required for balance check"}))
+                elif data.get('command') == 'validate_wallet':
+                    public_key = data.get('public_key')
+                    if public_key:
+                        try:
+                            # Validate the wallet address format and check if account exists
+                            from stellar_sdk import Keypair
+                            from stellar_sdk.exceptions import Ed25519PublicKeyInvalidError
+                            
+                            # Validate public key format
+                            Keypair.from_public_key(public_key)
+                            
+                            # Check if account exists on network
+                            from error_handler import check_account_balance
+                            balance_info = check_account_balance(public_key)
+                            
+                            await websocket.send(json.dumps({
+                                "wallet_validation": {
+                                    "valid": True,
+                                    "exists": balance_info is not None,
+                                    "balance_info": balance_info
+                                }
+                            }))
+                        except Ed25519PublicKeyInvalidError:
+                            await websocket.send(json.dumps({
+                                "wallet_validation": {
+                                    "valid": False,
+                                    "error": "Invalid public key format"
+                                }
+                            }))
+                        except Exception as e:
+                            await websocket.send(json.dumps({
+                                "wallet_validation": {
+                                    "valid": False,
+                                    "error": str(e)
+                                }
+                            }))
+                    else:
+                        await websocket.send(json.dumps({"error": "Public key required for wallet validation"}))
+                elif data.get('command') == 'get_portfolio':
+                    portfolio_summary = data_processor.get_portfolio_summary()
+                    await websocket.send(json.dumps({
+                        "type": "portfolio_data",
+                        "data": portfolio_summary
+                    }))
+                elif data.get('command') == 'get_trade_history':
+                    limit = data.get("limit", 100)
+                    trade_history = data_processor.get_trade_history(limit)
+                    await websocket.send(json.dumps({
+                        "type": "trade_history",
+                        "data": trade_history
+                    }))
+                elif data.get('command') == 'get_price_data':
+                    symbol = data.get("symbol")
+                    hours = data.get("hours", 24)
+                    if symbol:
+                        price_history = data_processor.get_price_history(symbol, hours)
+                        current_price = data_processor.get_current_price(symbol)
+                        await websocket.send(json.dumps({
+                            "type": "price_data",
+                            "data": {
+                                "symbol": symbol,
+                                "current_price": current_price.__dict__ if current_price else None,
+                                "history": [p.__dict__ for p in price_history]
+                            }
+                        }))
+                    else:
+                        await websocket.send(json.dumps({
+                            "type": "error",
+                            "message": "Symbol is required"
+                        }))
+                elif data.get('command') == 'get_performance_metrics':
+                    portfolio_summary = data_processor.get_portfolio_summary()
+                    await websocket.send(json.dumps({
+                        "type": "performance_metrics",
+                        "data": portfolio_summary["performance_metrics"]
+                    }))
+                elif data.get('command') == 'get_account_balance':
+                    account_id = data.get("account_id")
+                    if account_id:
+                        from error_handler import check_account_balance
+                        balance_info = check_account_balance(account_id)
+                        await websocket.send(json.dumps({
+                            "type": "account_balance",
+                            "data": balance_info
+                        }))
+                    else:
+                        await websocket.send(json.dumps({
+                            "type": "error",
+                            "message": "Account ID is required"
+                        }))
             except json.JSONDecodeError:
                 print(f"Received non-JSON message: {message}")
                 await websocket.send(json.dumps({"log": f"Received non-JSON message: {message}"}))

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Navigation from './components/Navigation';
 import ArbitrageDashboard from './components/ArbitrageDashboard';
 import Settings from './components/Settings';
+import Button from './components/ui/Button';
 
 const Routes = () => {
   const [currentView, setCurrentView] = useState('dashboard');
@@ -22,26 +23,22 @@ const Routes = () => {
       <Navigation />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div className="flex space-x-2 mb-6 bg-gray-800/50 backdrop-blur-sm rounded-xl p-1 border border-gray-700/50 w-fit">
-          <button
+          <Button
             onClick={() => setCurrentView('dashboard')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              currentView === 'dashboard'
-                ? 'bg-gradient-to-r from-blue-600 to-teal-600 text-white shadow-lg'
-                : 'text-gray-300 hover:text-white hover:bg-gray-700/50'
-            }`}
+            variant={currentView === 'dashboard' ? 'primary' : 'ghost'}
+            size="sm"
+            className="text-sm font-medium"
           >
             Dashboard
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => setCurrentView('settings')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              currentView === 'settings'
-                ? 'bg-gradient-to-r from-blue-600 to-teal-600 text-white shadow-lg'
-                : 'text-gray-300 hover:text-white hover:bg-gray-700/50'
-            }`}
+            variant={currentView === 'settings' ? 'primary' : 'ghost'}
+            size="sm"
+            className="text-sm font-medium"
           >
             Settings
-          </button>
+          </Button>
         </div>
         {renderView()}
       </div>

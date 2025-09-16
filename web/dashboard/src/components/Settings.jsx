@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import Button from './ui/Button';
 
 const Settings = () => {
   const [settings, setSettings] = useState({
@@ -188,12 +189,14 @@ const Settings = () => {
             </div>
 
             <div className="mt-8 pt-6 border-t border-gray-700">
-              <button
+              <Button
                 type="submit"
-                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-teal-600 rounded-lg hover:from-blue-700 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900 transition-all font-medium"
+                variant="primary"
+                size="default"
+                className="px-6 py-3 font-medium"
               >
                 Save Settings
-              </button>
+              </Button>
             </div>
           </form>
         </div>

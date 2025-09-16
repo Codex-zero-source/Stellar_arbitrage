@@ -1,4 +1,5 @@
 import React from 'react';
+import Button from './ui/Button';
 
 const Navigation = () => {
   return (
@@ -14,15 +15,15 @@ const Navigation = () => {
           </div>
           <div className="hidden md:block">
             <div className="ml-4 flex items-center md:ml-6 space-x-4">
-              <button className="px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-700/50 transition-colors">
+              <Button variant="ghost" size="sm" className="text-sm font-medium">
                 Dashboard
-              </button>
-              <button className="px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-700/50 transition-colors">
+              </Button>
+              <Button variant="ghost" size="sm" className="text-sm font-medium">
                 Settings
-              </button>
-              <button className="bg-gradient-to-r from-blue-600 to-teal-600 px-4 py-2 rounded-lg text-sm font-medium hover:from-blue-700 hover:to-teal-700 transition-all">
+              </Button>
+              <Button variant="primary" size="sm" className="text-sm font-medium">
                 Connect Wallet
-              </button>
+              </Button>
             </div>
           </div>
         </div>

@@ -186,8 +186,8 @@ impl ArbitrageDetector {
     /// Get the Reflector Oracle contract ID
     fn get_reflector_contract_id(env: &Env) -> Address {
         // In a real implementation, this would be stored in contract storage
-        // For now, we'll use the contract ID you provided
-        Address::from_string(&String::from_str(env, "CBIW2BTCOMOEV5WQC2JRWVH4TAXCZNAUIUOXYVAYP4YDW4D3AEEQPNTC"))
+        // Using the correct Stellar Pubnet Price feeds contract from Reflector Network
+        Address::from_string(&String::from_str(env, "CAVLP5DH2GJPZMVO7IJY4CVOD5MWEFTJFVPD2YY2FQXOQHRGHK4D6HLP"))
     }
     
     /// Set the Reflector Oracle contract ID (admin function)

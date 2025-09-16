@@ -96,18 +96,39 @@ const ArbitrageLogViewer = () => {
   }
 
   return (
-    <div className="arbitrage-output">
-      <h2>Arbitrage Engine Output</h2>
-      <div className="terminal-content">
+    <div className="brutal-glass">
+      <div className="border-b-4 border-neon-cyan p-4">
+        <h2 className="text-neon-cyan font-black uppercase text-lg tracking-widest text-glow">
+          ARBITRAGE ENGINE OUTPUT
+        </h2>
+      </div>
+      <div 
+        ref={terminalRef}
+        className="h-80 overflow-y-auto bg-brutal-black/80 border-4 border-neon-cyan m-4 p-4 terminal font-mono text-sm"
+        style={{ scrollbarWidth: 'thin', scrollbarColor: '#00F6FF #000000' }}
+      >
         {logs.length === 0 ? (
-          <p>Waiting for arbitrage engine output...</p>
+          <div className="text-neon-lime text-glow animate-pulse">
+            <span className="text-neon-cyan">[SYSTEM]</span> Waiting for arbitrage engine output...
+          </div>
         ) : (
-          logs.map((logEntry, index) => (
-            <div key={index} className={`log-line ${getLineColor(logEntry)}`}>
-              <span className="log-prefix">{getLogPrefix(logEntry)}</span>
-              <span className="log-content">{formatLogMessage(logEntry)}</span>
-            </div>
-          ))
+          logs.map((logEntry, index) => {
+            const lineColor = getLineColor(logEntry);
+            const colorClass = {
+              'error': 'text-brutal-red',
+              'warning': 'text-brutal-yellow',
+              'success': 'text-neon-lime',
+              'opportunity': 'text-neon-cyan',
+              '': 'text-white'
+            }[lineColor] || 'text-white';
+
+            return (
+              <div key={index} className={`terminal-line mb-1 ${colorClass} text-glow`}>
+                <span className="text-neon-magenta font-bold">{getLogPrefix(logEntry)}</span>
+                <span className="font-mono">{formatLogMessage(logEntry)}</span>
+              </div>
+            );
+          })
         )}
         <div ref={terminalEndRef} />
       </div>

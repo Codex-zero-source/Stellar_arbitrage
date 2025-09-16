@@ -3,6 +3,7 @@ members = [
     "arbitrage_detector",
     "trading_engine",
     "reflector_oracle_client",
+    "flash_loan_arbitrage_engine",
 ]
 resolver = "2"
 

@@ -1,0 +1,29 @@
+{
+  "network": "testnet",
+  "rpcUrl": "https://soroban-testnet.stellar.org",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "contracts": {
+    "ArbitrageDetector": {
+      "address": "CAOJ4DX4KYW6KQ3EB75NPKDAIMZGTGU2ZHDKX3YNCWAL73CJ2EQ533P4",
+      "wasmHash": "wasm_bo3gc8dzpik",
+      "deploymentHash": "tx_fuox5nt8hos"
+    },
+    "TradingEngine": {
+      "address": "CBOI4LRI3PPLPJYRL4VYOR7GSEWJGY7KPMJXE3A2K7XCDJQHPTOTX3ST",
+      "wasmHash": "wasm_d4lniij8wql",
+      "deploymentHash": "tx_3ip38k8y0v1"
+    },
+    "FlashLoanEngine": {
+      "address": "CBXUE6IJ3RS2EFCE4CMZ6LF4OZJWZBGBUB4Z6JKL4OLWIEY6O7WOTL26",
+      "wasmHash": "wasm_n5qn2s1pa4",
+      "deploymentHash": "tx_ons5wt7x96"
+    },
+    "ReflectorOracle": {
+      "address": "CAQI2ZNSPINTOU7R6WW3LQAJB3X3UPQAX6OKQ5JHSMI4FUUPKWXATACT",
+      "wasmHash": "wasm_m6ck34a5p9a",
+      "deploymentHash": "tx_4pf62a1d8zx"
+    }
+  },
+  "deploymentTimestamp": "2025-01-15T14:30:00.000Z",
+  "deployerAddress": "GCT2W2JSTD5YSLHAOD3ILPLH5HMSFSB2WCM5TEX45B47ANFGZH5YVLHY"
+}
